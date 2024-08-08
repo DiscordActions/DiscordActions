@@ -670,6 +670,13 @@ def get_existing_video_ids() -> Set[str]:
 def process_new_videos(youtube, videos: List[Tuple[str, Dict[str, Any]]], video_details_dict: Dict[str, Dict[str, Any]], 
                        existing_video_ids: Set[str], since_date: datetime, until_date: datetime, past_date: datetime) -> List[Dict[str, Any]]:
     new_videos = []
+    filtered_by_date = 0
+    filtered_by_advanced = 0
+    
+    logging.info(f"ADVANCED_FILTER_YOUTUBE: {ADVANCED_FILTER_YOUTUBE}")
+    logging.info(f"DATE_FILTER_YOUTUBE: {DATE_FILTER_YOUTUBE}")
+    logging.info(f"Date filter parsed - since: {since_date}, until: {until_date}, past: {past_date}")
+    
     for video_id, snippet in videos:
         if video_id not in video_details_dict:
             logging.warning(f"비디오 세부 정보를 찾을 수 없음: {video_id}")
@@ -689,18 +696,24 @@ def process_new_videos(youtube, videos: List[Tuple[str, Dict[str, Any]]], video_
         # 초기 실행 시 날짜 필터 무시
         if not INITIALIZE_MODE_YOUTUBE and not is_within_date_range(published_at, since_date, until_date, past_date):
             logging.info(f"날짜 필터에 의해 건너뛰어진 비디오: {snippet['title']}")
+            filtered_by_date += 1
             continue
 
         video_title = snippet['title']
         
         if not apply_advanced_filter(video_title, ADVANCED_FILTER_YOUTUBE):
             logging.info(f"고급 필터에 의해 건너뛰어진 비디오: {video_title}")
+            filtered_by_advanced += 1
             continue
 
         new_videos.append(create_video_data(youtube, video_id, snippet, content_details, live_streaming_details))
     
+    logging.info(f"총 비디오 수: {len(videos)}")
+    logging.info(f"날짜 필터에 의해 제외된 비디오 수: {filtered_by_date}")
+    logging.info(f"고급 필터에 의해 제외된 비디오 수: {filtered_by_advanced}")
+    logging.info(f"최종적으로 처리된 새 비디오 수: {len(new_videos)}")
+    
     return new_videos
-
 def create_video_data(youtube, video_id: str, snippet: Dict[str, Any], content_details: Dict[str, Any], live_streaming_details: Dict[str, Any]) -> Dict[str, Any]:
     return {
         'published_at': snippet['publishedAt'],
@@ -757,20 +770,27 @@ def main():
         logging.info("새 비디오 처리 시작")
         new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
         
+        # 오래된 순서부터 최신순으로 정렬
+        new_videos.sort(key=lambda x: x['published_at'])
+        
         logging.info(f"처리할 새로운 비디오 수: {len(new_videos)}")
         
-        logging.info("비디오 처리 및 Discord에 전송 시작")
-        for index, video in enumerate(new_videos, 1):
-            logging.info(f"비디오 처리 중 ({index}/{len(new_videos)}): {video['title']}")
+        for video in new_videos:
             process_video(video, youtube, playlist_info)
 
         log_execution_info()
         
+    except YouTubeAPIError as e:
+        logging.error(f"유튜브 API 오류 발생: {e}")
+    except DatabaseError as e:
+        logging.error(f"데이터베이스 오류 발생: {e}")
+    except DiscordWebhookError as e:
+        logging.error(f"디스코드 웹훅 오류 발생: {e}")
     except Exception as e:
         logging.error(f"알 수 없는 오류 발생: {e}", exc_info=True)
         sys.exit(1)
     finally:
         logging.info("스크립트 실행 완료")
-
+        
 if __name__ == "__main__":
     main()
