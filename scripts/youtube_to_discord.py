@@ -183,56 +183,37 @@ def save_video(video_data: Dict[str, Any]) -> None:
         logging.error(f"비디오 저장 중 오류 발생: {e}")
         raise DatabaseError("비디오 저장 중 오류 발생")
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=5), retry_error_callback=lambda retry_state: None)
 def fetch_videos(youtube, mode: str, channel_id: str, playlist_id: str, search_keyword: str) -> List[Tuple[str, Dict[str, Any]]]:
-    """유튜브에서 비디오 목록을 가져옵니다."""
-    try:
-        if mode == 'channels':
-            return fetch_channel_videos(youtube, channel_id)
-        elif mode == 'playlists':
-            return fetch_playlist_videos(youtube, playlist_id)
-        elif mode == 'search':
-            return fetch_search_videos(youtube, search_keyword)
-        else:
-            raise ValueError("잘못된 모드입니다.")
-    except HttpError as e:
-        logging.error(f"비디오 목록을 가져오는 중 오류 발생: {e}")
-        raise YouTubeAPIError("유튜브 API 호출 중 오류 발생")
-    except Exception as e:
-        logging.error(f"비디오 목록을 가져오는 중 알 수 없는 오류 발생: {e}")
-        raise YouTubeAPIError("유튜브 API 호출 중 알 수 없는 오류 발생")
+    if mode == 'channels':
+        return fetch_channel_videos(youtube, channel_id)
+    elif mode == 'playlists':
+        return fetch_playlist_videos(youtube, playlist_id)
+    elif mode == 'search':
+        return fetch_search_videos(youtube, search_keyword)
+    else:
+        raise ValueError("잘못된 모드입니다.")
 
 def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     video_items = []
     next_page_token = None
     max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
-    results_per_page = 50
 
     while len(video_items) < max_results:
-        try:
-            response = youtube.search().list(
-                channelId=channel_id,
-                order='date',
-                type='video',
-                part='snippet,id',
-                maxResults=min(results_per_page, max_results - len(video_items)),
-                pageToken=next_page_token
-            ).execute()
+        response = youtube.search().list(
+            channelId=channel_id,
+            order='date',
+            type='video',
+            part='snippet,id',
+            maxResults=min(50, max_results - len(video_items)),
+            pageToken=next_page_token
+        ).execute()
 
-            for item in response.get('items', []):
-                video_items.append((item['id']['videoId'], item['snippet']))
-            
-            next_page_token = response.get('nextPageToken')
-            if not next_page_token:
-                break
-        except Exception as e:
-            logging.error(f"Error fetching videos: {e}")
+        video_items.extend([(item['id']['videoId'], item['snippet']) for item in response.get('items', [])])
+        
+        next_page_token = response.get('nextPageToken')
+        if not next_page_token:
             break
 
-    # 날짜를 기준으로 최신순으로 정렬
-    video_items.sort(key=lambda x: x[1]['publishedAt'], reverse=True)
-    
-    # 최신 max_results 개수만큼 반환
     return video_items[:max_results]
 
 def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str, Any]]]:
@@ -277,7 +258,6 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
     video_items = []
     next_page_token = None
     max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
-    results_per_page = 50
 
     while len(video_items) < max_results:
         response = youtube.search().list(
@@ -285,7 +265,7 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
             order='date',
             type='video',
             part='snippet,id',
-            maxResults=min(results_per_page, max_results - len(video_items)),
+            maxResults=min(50, max_results - len(video_items)),
             pageToken=next_page_token
         ).execute()
 
@@ -295,8 +275,6 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
         if not next_page_token:
             break
 
-    # 오래된 순서에서 최신 순서로 정렬 (publishedAt 기준 오름차순)
-    video_items.sort(key=lambda x: x[1]['publishedAt'])
     return video_items[:max_results]
 
 def get_channel_thumbnail(youtube, channel_id: str) -> str:
@@ -691,7 +669,6 @@ def process_new_videos(youtube, videos: List[Tuple[str, Dict[str, Any]]], video_
             logging.info(f"이미 존재하는 비디오 건너뛰기: {video_id}")
             continue
 
-        # 초기 실행 시 날짜 필터 무시
         if not INITIALIZE_MODE_YOUTUBE and not is_within_date_range(published_at, since_date, until_date, past_date):
             logging.info(f"날짜 필터에 의해 건너뛰어진 비디오: {snippet['title']}")
             continue
@@ -703,9 +680,6 @@ def process_new_videos(youtube, videos: List[Tuple[str, Dict[str, Any]]], video_
             continue
 
         new_videos.append(create_video_data(youtube, video_id, snippet, content_details, live_streaming_details))
-    
-    # 날짜순으로 정렬 (오래된 순)
-    new_videos.sort(key=lambda x: x['published_at'])
     
     return new_videos
 
@@ -752,14 +726,13 @@ def main():
         video_details_dict = get_video_details_dict(youtube, video_ids)
         existing_video_ids = get_existing_video_ids()
         
-        # 기본값으로 날짜 필터 설정
         since_date, until_date, past_date = parse_date_filter(DATE_FILTER_YOUTUBE) if DATE_FILTER_YOUTUBE else (None, None, None)
         
         new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
         
         # 채널 모드와 검색 모드일 때는 오래된 순서부터 처리
         if YOUTUBE_MODE in ['channels', 'search']:
-            new_videos = new_videos[::-1]  # 리스트를 뒤집어 최신 순으로 변경
+            new_videos.sort(key=lambda x: x['published_at'])
         
         for video in new_videos:
             process_video(video, youtube, playlist_info)
@@ -767,12 +740,6 @@ def main():
         logging.info(f"새로운 비디오 수: {len(new_videos)}")
         log_execution_info()
         
-    except YouTubeAPIError as e:
-        logging.error(f"유튜브 API 오류 발생: {e}")
-    except DatabaseError as e:
-        logging.error(f"데이터베이스 오류 발생: {e}")
-    except DiscordWebhookError as e:
-        logging.error(f"디스코드 웹훅 오류 발생: {e}")
     except Exception as e:
         logging.error(f"알 수 없는 오류 발생: {e}", exc_info=True)
         sys.exit(1)
