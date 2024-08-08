@@ -209,26 +209,31 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
     results_per_page = 50
 
     while len(video_items) < max_results:
-        response = youtube.search().list(
-            channelId=channel_id,
-            order='date',
-            type='video',
-            part='snippet,id',
-            maxResults=min(results_per_page, max_results - len(video_items)),
-            pageToken=next_page_token
-        ).execute()
+        try:
+            response = youtube.search().list(
+                channelId=channel_id,
+                order='date',
+                type='video',
+                part='snippet,id',
+                maxResults=min(results_per_page, max_results - len(video_items)),
+                pageToken=next_page_token
+            ).execute()
 
-        video_items.extend([(item['id']['videoId'], item['snippet']) for item in response.get('items', [])])
-        
-        next_page_token = response.get('nextPageToken')
-        if not next_page_token:
+            for item in response.get('items', []):
+                video_items.append((item['id']['videoId'], item['snippet']))
+            
+            next_page_token = response.get('nextPageToken')
+            if not next_page_token:
+                break
+        except Exception as e:
+            logging.error(f"Error fetching videos: {e}")
             break
 
-    # 최신 순으로 정렬된 상태에서 지정된 개수만큼만 유지
-    video_items = sorted(video_items, key=lambda x: x[1]['publishedAt'], reverse=True)[:max_results]
+    # 날짜를 기준으로 최신순으로 정렬
+    video_items.sort(key=lambda x: x[1]['publishedAt'], reverse=True)
     
-    # 오래된 순서부터 최신 순으로 다시 정렬
-    return sorted(video_items, key=lambda x: x[1]['publishedAt'])
+    # 최신 max_results 개수만큼 반환
+    return video_items[:max_results]
 
 def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     playlist_items = []
@@ -748,6 +753,10 @@ def main():
         since_date, until_date, past_date = parse_date_filter(DATE_FILTER_YOUTUBE) if DATE_FILTER_YOUTUBE else (None, None, None)
         
         new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
+        
+        # 채널 모드일 때는 오래된 순서부터 처리
+        if YOUTUBE_MODE == 'channels':
+            new_videos.reverse()
         
         for video in new_videos:
             process_video(video, youtube, playlist_info)
