@@ -214,7 +214,7 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
             order='date',
             type='video',
             part='snippet,id',
-            maxResults=results_per_page,
+            maxResults=min(results_per_page, max_results - len(video_items)),
             pageToken=next_page_token
         ).execute()
 
@@ -224,8 +224,11 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
         if not next_page_token:
             break
 
-    video_items.sort(key=lambda x: x[1]['publishedAt'])
-    return video_items[:max_results]
+    # 최신 순으로 정렬된 상태에서 지정된 개수만큼만 유지
+    video_items = sorted(video_items, key=lambda x: x[1]['publishedAt'], reverse=True)[:max_results]
+    
+    # 오래된 순서부터 최신 순으로 다시 정렬
+    return sorted(video_items, key=lambda x: x[1]['publishedAt'])
 
 def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     playlist_items = []
@@ -237,7 +240,7 @@ def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str
         playlist_request = youtube.playlistItems().list(
             part="snippet",
             playlistId=playlist_id,
-            maxResults=results_per_page,
+            maxResults=min(results_per_page, max_results - len(playlist_items)),
             pageToken=next_page_token
         )
         playlist_response = playlist_request.execute()
@@ -253,14 +256,15 @@ def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str
     return [(item['snippet']['resourceId']['videoId'], item['snippet']) for item in playlist_items[:max_results]]
 
 def sort_playlist_items(playlist_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    playlist_items.sort(key=lambda x: x['snippet']['position'])  # 기본값은 position으로 설정
-    
     if YOUTUBE_PLAYLIST_SORT == 'reverse':
         playlist_items.reverse()
     elif YOUTUBE_PLAYLIST_SORT == 'date_newest':
         playlist_items.sort(key=lambda x: x['snippet']['publishedAt'], reverse=True)
     elif YOUTUBE_PLAYLIST_SORT == 'date_oldest':
         playlist_items.sort(key=lambda x: x['snippet']['publishedAt'])
+    else:
+        # 기본값은 position으로 설정 (재생목록 작성자가 의도한 순서)
+        playlist_items.sort(key=lambda x: x['snippet']['position'])
     
     return playlist_items
 
@@ -276,7 +280,7 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
             order='date',
             type='video',
             part='snippet,id',
-            maxResults=results_per_page,
+            maxResults=min(results_per_page, max_results - len(video_items)),
             pageToken=next_page_token
         ).execute()
 
@@ -286,6 +290,7 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
         if not next_page_token:
             break
 
+    # 오래된 순서에서 최신 순서로 정렬 (publishedAt 기준 오름차순)
     video_items.sort(key=lambda x: x[1]['publishedAt'])
     return video_items[:max_results]
 
