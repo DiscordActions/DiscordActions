@@ -714,6 +714,7 @@ def process_new_videos(youtube, videos: List[Tuple[str, Dict[str, Any]]], video_
     logging.info(f"최종적으로 처리된 새 비디오 수: {len(new_videos)}")
     
     return new_videos
+    
 def create_video_data(youtube, video_id: str, snippet: Dict[str, Any], content_details: Dict[str, Any], live_streaming_details: Dict[str, Any]) -> Dict[str, Any]:
     return {
         'published_at': snippet['publishedAt'],
