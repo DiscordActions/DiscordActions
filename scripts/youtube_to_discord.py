@@ -409,7 +409,7 @@ def convert_to_local_time(published_at: str) -> str:
         return kst_time.strftime("%Y년 %m월 %d일 %H시 %M분")
     else:
         local_time = utc_time.astimezone()
-        return local_time.strftime("%Y-%m-%d %H:%M:%S")        
+        return local_time.strftime("%Y-%m-%d %H:%M:%S")
 
 def apply_advanced_filter(title: str, advanced_filter: str) -> bool:
     """고급 필터를 적용하여 제목을 필터링합니다."""
@@ -715,31 +715,43 @@ def log_execution_info():
         count = c.fetchone()[0]
         logging.info(f"데이터베이스의 비디오 수: {count}")
 
+def fetch_and_post_videos(youtube):
+    logging.info(f"fetch_and_post_videos 함수 시작")
+    logging.info(f"YOUTUBE_DETAILVIEW 설정: {YOUTUBE_DETAILVIEW}")
+    logging.info(f"YOUTUBE_PLAYLIST_SORT 설정: {YOUTUBE_PLAYLIST_SORT}")
+
+    if not os.path.exists(DB_PATH):
+        init_db()
+
+    existing_video_ids = get_existing_video_ids()
+    since_date, until_date, past_date = parse_date_filter(DATE_FILTER_YOUTUBE)
+
+    videos = fetch_videos(youtube, YOUTUBE_MODE, YOUTUBE_CHANNEL_ID, YOUTUBE_PLAYLIST_ID, YOUTUBE_SEARCH_KEYWORD)
+    video_ids = [video[0] for video in videos]
+
+    video_details = fetch_video_details(youtube, video_ids)
+    video_details_dict = {video['id']: video for video in video_details}
+
+    new_videos = []
+    playlist_info = None
+    if YOUTUBE_MODE == 'playlists':
+        playlist_info = fetch_playlist_info(youtube, YOUTUBE_PLAYLIST_ID)
+
+    new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
+
+    logging.info(f"새로운 비디오 수: {len(new_videos)}")
+
+    for video in new_videos:
+        process_video(video, youtube, playlist_info)
+
+    log_execution_info()
+
 def main():
     try:
         check_env_variables()
         initialize_database_if_needed()
         youtube = build_youtube_client()
-        playlist_info = fetch_playlist_info_if_needed(youtube)
-        videos = fetch_videos(youtube, YOUTUBE_MODE, YOUTUBE_CHANNEL_ID, YOUTUBE_PLAYLIST_ID, YOUTUBE_SEARCH_KEYWORD)
-        video_ids = [video[0] for video in videos]
-        video_details_dict = get_video_details_dict(youtube, video_ids)
-        existing_video_ids = get_existing_video_ids()
-        
-        since_date, until_date, past_date = parse_date_filter(DATE_FILTER_YOUTUBE) if DATE_FILTER_YOUTUBE else (None, None, None)
-        
-        new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
-        
-        # 채널 모드와 검색 모드일 때는 오래된 순서부터 처리
-        if YOUTUBE_MODE in ['channels', 'search']:
-            new_videos.sort(key=lambda x: x['published_at'])
-        
-        for video in new_videos:
-            process_video(video, youtube, playlist_info)
-
-        logging.info(f"새로운 비디오 수: {len(new_videos)}")
-        log_execution_info()
-        
+        fetch_and_post_videos(youtube)
     except Exception as e:
         logging.error(f"알 수 없는 오류 발생: {e}", exc_info=True)
         sys.exit(1)
