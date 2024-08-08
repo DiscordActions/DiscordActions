@@ -114,11 +114,21 @@ def init_db(reset: bool = False) -> None:
 
 def initialize_database_if_needed():
     try:
+        global IS_FIRST_RUN
         if INITIALIZE_MODE_YOUTUBE:
             init_db(reset=True)
+            IS_FIRST_RUN = True
             logging.info("초기화 모드로 실행 중: 데이터베이스를 재설정하고 모든 비디오를 다시 가져옵니다.")
         else:
             init_db()
+            with sqlite3.connect(DB_PATH) as conn:
+                c = conn.cursor()
+                c.execute("SELECT COUNT(*) FROM videos")
+                count = c.fetchone()[0]
+                if count == 0:
+                    IS_FIRST_RUN = True
+                else:
+                    IS_FIRST_RUN = False
     except sqlite3.Error as e:
         logging.error(f"데이터베이스 초기화 중 오류 발생: {e}")
         raise
@@ -204,14 +214,30 @@ def fetch_videos(youtube, mode: str, channel_id: str, playlist_id: str, search_k
         raise YouTubeAPIError("유튜브 API 호출 중 알 수 없는 오류 발생")
 
 def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, Any]]]:
-    response = youtube.search().list(
-        channelId=channel_id,
-        order='date',
-        type='video',
-        part='snippet,id',
-        maxResults=INIT_MAX_RESULTS if IS_FIRST_RUN or INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
-    ).execute()
-    return [(item['id']['videoId'], item['snippet']) for item in response.get('items', [])]
+    video_items = []
+    next_page_token = None
+
+    while True:
+        response = youtube.search().list(
+            channelId=channel_id,
+            order='date',
+            type='video',
+            part='snippet,id',
+            maxResults=50,
+            pageToken=next_page_token
+        ).execute()
+        
+        video_items.extend([(item['id']['videoId'], item['snippet']) for item in response.get('items', [])])
+        
+        next_page_token = response.get('nextPageToken')
+        if not next_page_token or (not IS_FIRST_RUN and not INITIALIZE_MODE_YOUTUBE and len(video_items) >= MAX_RESULTS):
+            break
+    
+    if not IS_FIRST_RUN and not INITIALIZE_MODE_YOUTUBE:
+        video_items = video_items[:MAX_RESULTS]
+    
+    video_items.sort(key=lambda x: x[1]['publishedAt'])
+    return video_items
 
 def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     playlist_items = []
@@ -653,7 +679,8 @@ def process_new_videos(youtube, videos: List[Tuple[str, Dict[str, Any]]], video_
             logging.info(f"이미 존재하는 비디오 건너뛰기: {video_id}")
             continue
 
-        if not is_within_date_range(published_at, since_date, until_date, past_date):
+        # 초기 실행 시 날짜 필터 무시
+        if not IS_FIRST_RUN and not INITIALIZE_MODE_YOUTUBE and not is_within_date_range(published_at, since_date, until_date, past_date):
             logging.info(f"날짜 필터에 의해 건너뛰어진 비디오: {snippet['title']}")
             continue
 
@@ -710,7 +737,10 @@ def main():
         video_ids = [video[0] for video in videos]
         video_details_dict = get_video_details_dict(youtube, video_ids)
         existing_video_ids = get_existing_video_ids()
-        since_date, until_date, past_date = parse_date_filter(DATE_FILTER_YOUTUBE)
+        
+        # 기본값으로 날짜 필터 설정
+        since_date, until_date, past_date = parse_date_filter(DATE_FILTER_YOUTUBE) if DATE_FILTER_YOUTUBE else (None, None, None)
+        
         new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
         
         for video in new_videos:
