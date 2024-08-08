@@ -195,32 +195,21 @@ def fetch_videos(youtube, mode: str, channel_id: str, playlist_id: str, search_k
         raise ValueError("잘못된 모드입니다.")
 
 def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, Any]]]:
-    video_items = []
-    next_page_token = None
-    max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
+    try:
+        response = youtube.search().list(
+            channelId=channel_id,
+            order='date',
+            type='video',
+            part='snippet,id',
+            maxResults=50
+        ).execute()
 
-    while len(video_items) < max_results:
-        try:
-            response = youtube.search().list(
-                channelId=channel_id,
-                order='date',
-                type='video',
-                part='snippet,id',
-                maxResults=min(50, max_results - len(video_items)),
-                pageToken=next_page_token
-            ).execute()
-
-            video_items.extend([(item['id']['videoId'], item['snippet']) for item in response.get('items', [])])
-            
-            next_page_token = response.get('nextPageToken')
-            if not next_page_token or len(video_items) >= max_results:
-                break
-        except Exception as e:
-            logging.error(f"Error fetching channel videos: {e}")
-            break
-
-    return video_items[:max_results]
-
+        video_items = [(item['id']['videoId'], item['snippet']) for item in response.get('items', [])]
+        return video_items
+    except Exception as e:
+        logging.error(f"Error fetching channel videos: {e}")
+        return []
+    
 def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     playlist_items = []
     next_page_token = None
@@ -259,32 +248,21 @@ def sort_playlist_items(playlist_items: List[Dict[str, Any]]) -> List[Dict[str, 
     return playlist_items
 
 def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[str, Any]]]:
-    video_items = []
-    next_page_token = None
-    max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
+    try:
+        response = youtube.search().list(
+            q=search_keyword,
+            order='date',
+            type='video',
+            part='snippet,id',
+            maxResults=50
+        ).execute()
 
-    while len(video_items) < max_results:
-        try:
-            response = youtube.search().list(
-                q=search_keyword,
-                order='date',
-                type='video',
-                part='snippet,id',
-                maxResults=min(50, max_results - len(video_items)),
-                pageToken=next_page_token
-            ).execute()
-
-            video_items.extend([(item['id']['videoId'], item['snippet']) for item in response.get('items', [])])
-            
-            next_page_token = response.get('nextPageToken')
-            if not next_page_token or len(video_items) >= max_results:
-                break
-        except Exception as e:
-            logging.error(f"Error fetching search videos: {e}")
-            break
-
-    return video_items[:max_results]
-
+        video_items = [(item['id']['videoId'], item['snippet']) for item in response.get('items', [])]
+        return video_items
+    except Exception as e:
+        logging.error(f"Error fetching search videos: {e}")
+        return []
+        
 def get_channel_thumbnail(youtube, channel_id: str) -> str:
     """채널 썸네일을 가져옵니다."""
     try:
@@ -742,9 +720,15 @@ def main():
         
         new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
         
-        # 채널 모드와 검색 모드일 때는 오래된 순서부터 처리
+        new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
+        
+        # 채널 모드와 검색 모드일 때 오래된 순서부터 정렬
         if YOUTUBE_MODE in ['channels', 'search']:
             new_videos.sort(key=lambda x: x['published_at'])
+        
+        # 초기 실행 또는 후속 실행에 따라 처리할 비디오 수 제한
+        max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
+        new_videos = new_videos[:max_results]
         
         logging.info(f"처리할 새로운 비디오 수: {len(new_videos)}")
         
