@@ -23,9 +23,8 @@ YOUTUBE_CHANNEL_ID = os.getenv('YOUTUBE_CHANNEL_ID')
 YOUTUBE_PLAYLIST_ID = os.getenv('YOUTUBE_PLAYLIST_ID')
 YOUTUBE_PLAYLIST_SORT = os.getenv('YOUTUBE_PLAYLIST_SORT', 'default').lower()
 YOUTUBE_SEARCH_KEYWORD = os.getenv('YOUTUBE_SEARCH_KEYWORD')
-INIT_MAX_RESULTS = int(os.getenv('YOUTUBE_INIT_MAX_RESULTS') or '100')
+INIT_MAX_RESULTS = int(os.getenv('YOUTUBE_INIT_MAX_RESULTS') or '50')
 MAX_RESULTS = int(os.getenv('YOUTUBE_MAX_RESULTS') or '10')
-IS_FIRST_RUN = os.getenv('IS_FIRST_RUN', 'false').lower() == 'true'
 INITIALIZE_MODE_YOUTUBE = os.getenv('INITIALIZE_MODE_YOUTUBE', 'false').lower() == 'true'
 ADVANCED_FILTER_YOUTUBE = os.getenv('ADVANCED_FILTER_YOUTUBE', '')
 DATE_FILTER_YOUTUBE = os.getenv('DATE_FILTER_YOUTUBE', '')
@@ -114,21 +113,11 @@ def init_db(reset: bool = False) -> None:
 
 def initialize_database_if_needed():
     try:
-        global IS_FIRST_RUN
         if INITIALIZE_MODE_YOUTUBE:
             init_db(reset=True)
-            IS_FIRST_RUN = True
             logging.info("초기화 모드로 실행 중: 데이터베이스를 재설정하고 모든 비디오를 다시 가져옵니다.")
         else:
             init_db()
-            with sqlite3.connect(DB_PATH) as conn:
-                c = conn.cursor()
-                c.execute("SELECT COUNT(*) FROM videos")
-                count = c.fetchone()[0]
-                if count == 0:
-                    IS_FIRST_RUN = True
-                else:
-                    IS_FIRST_RUN = False
     except sqlite3.Error as e:
         logging.error(f"데이터베이스 초기화 중 오류 발생: {e}")
         raise
@@ -193,7 +182,7 @@ def save_video(video_data: Dict[str, Any]) -> None:
     except sqlite3.Error as e:
         logging.error(f"비디오 저장 중 오류 발생: {e}")
         raise DatabaseError("비디오 저장 중 오류 발생")
-		
+
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=5), retry_error_callback=lambda retry_state: None)
 def fetch_videos(youtube, mode: str, channel_id: str, playlist_id: str, search_keyword: str) -> List[Tuple[str, Dict[str, Any]]]:
     """유튜브에서 비디오 목록을 가져옵니다."""
@@ -216,38 +205,41 @@ def fetch_videos(youtube, mode: str, channel_id: str, playlist_id: str, search_k
 def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     video_items = []
     next_page_token = None
+    max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
+    results_per_page = 50
+    required_pages = (max_results // results_per_page) + (1 if max_results % results_per_page != 0 else 0)
 
-    while True:
+    for _ in range(required_pages):
         response = youtube.search().list(
             channelId=channel_id,
             order='date',
             type='video',
             part='snippet,id',
-            maxResults=50,
+            maxResults=results_per_page,
             pageToken=next_page_token
         ).execute()
         
         video_items.extend([(item['id']['videoId'], item['snippet']) for item in response.get('items', [])])
         
         next_page_token = response.get('nextPageToken')
-        if not next_page_token or (not IS_FIRST_RUN and not INITIALIZE_MODE_YOUTUBE and len(video_items) >= MAX_RESULTS):
+        if not next_page_token:
             break
     
-    if not IS_FIRST_RUN and not INITIALIZE_MODE_YOUTUBE:
-        video_items = video_items[:MAX_RESULTS]
-    
     video_items.sort(key=lambda x: x[1]['publishedAt'])
-    return video_items
+    return video_items[:max_results]
 
 def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     playlist_items = []
     next_page_token = None
+    max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
+    results_per_page = 50
+    required_pages = (max_results // results_per_page) + (1 if max_results % results_per_page != 0 else 0)
 
-    while True:
+    for _ in range(required_pages):
         playlist_request = youtube.playlistItems().list(
             part="snippet",
             playlistId=playlist_id,
-            maxResults=50,
+            maxResults=results_per_page,
             pageToken=next_page_token
         )
         playlist_response = playlist_request.execute()
@@ -255,18 +247,15 @@ def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str
         playlist_items.extend(playlist_response['items'])
         
         next_page_token = playlist_response.get('nextPageToken')
-        if not next_page_token or (not IS_FIRST_RUN and not INITIALIZE_MODE_YOUTUBE and len(playlist_items) >= MAX_RESULTS):
+        if not next_page_token:
             break
 
-    if not IS_FIRST_RUN and not INITIALIZE_MODE_YOUTUBE:
-        playlist_items = playlist_items[:MAX_RESULTS]
-    
     playlist_items = sort_playlist_items(playlist_items)
     
-    return [(item['snippet']['resourceId']['videoId'], item['snippet']) for item in playlist_items]
+    return [(item['snippet']['resourceId']['videoId'], item['snippet']) for item in playlist_items[:max_results]]
 
 def sort_playlist_items(playlist_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    playlist_items.sort(key=lambda x: x['snippet']['position'])
+    playlist_items.sort(key=lambda x: x['snippet']['position'])  # 기본값은 position으로 설정
     
     if YOUTUBE_PLAYLIST_SORT == 'reverse':
         playlist_items.reverse()
@@ -278,14 +267,30 @@ def sort_playlist_items(playlist_items: List[Dict[str, Any]]) -> List[Dict[str, 
     return playlist_items
 
 def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[str, Any]]]:
-    response = youtube.search().list(
-        q=search_keyword,
-        order='date',
-        type='video',
-        part='snippet,id',
-        maxResults=INIT_MAX_RESULTS if IS_FIRST_RUN or INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
-    ).execute()
-    return [(item['id']['videoId'], item['snippet']) for item in response.get('items', [])]
+    video_items = []
+    next_page_token = None
+    max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
+    results_per_page = 50
+    required_pages = (max_results // results_per_page) + (1 if max_results % results_per_page != 0 else 0)
+
+    for _ in range(required_pages):
+        response = youtube.search().list(
+            q=search_keyword,
+            order='date',
+            type='video',
+            part='snippet,id',
+            maxResults=results_per_page,
+            pageToken=next_page_token
+        ).execute()
+        
+        video_items.extend([(item['id']['videoId'], item['snippet']) for item in response.get('items', [])])
+        
+        next_page_token = response.get('nextPageToken')
+        if not next_page_token:
+            break
+    
+    video_items.sort(key=lambda x: x[1]['publishedAt'])
+    return video_items[:max_results]
 
 def get_channel_thumbnail(youtube, channel_id: str) -> str:
     """채널 썸네일을 가져옵니다."""
@@ -680,7 +685,7 @@ def process_new_videos(youtube, videos: List[Tuple[str, Dict[str, Any]]], video_
             continue
 
         # 초기 실행 시 날짜 필터 무시
-        if not IS_FIRST_RUN and not INITIALIZE_MODE_YOUTUBE and not is_within_date_range(published_at, since_date, until_date, past_date):
+        if not INITIALIZE_MODE_YOUTUBE and not is_within_date_range(published_at, since_date, until_date, past_date):
             logging.info(f"날짜 필터에 의해 건너뛰어진 비디오: {snippet['title']}")
             continue
 
@@ -717,7 +722,6 @@ def create_video_data(youtube, video_id: str, snippet: Dict[str, Any], content_d
 def log_execution_info():
     logging.info(f"YOUTUBE_MODE: {YOUTUBE_MODE}")
     logging.info(f"INITIALIZE_MODE_YOUTUBE: {INITIALIZE_MODE_YOUTUBE}")
-    logging.info(f"IS_FIRST_RUN: {IS_FIRST_RUN}")
     logging.info(f"YOUTUBE_DETAILVIEW: {YOUTUBE_DETAILVIEW}")
     logging.info(f"데이터베이스 파일 크기: {os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else '파일 없음'}")
     
