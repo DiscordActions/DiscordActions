@@ -197,7 +197,7 @@ def fetch_videos(youtube, mode: str, channel_id: str, playlist_id: str, search_k
 def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     video_items = []
     next_page_token = None
-    max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
+    max_results = max(INIT_MAX_RESULTS, MAX_RESULTS) * 2  # 더 많은 결과를 요청
 
     logging.info(f"채널 ID: {channel_id}에서 최대 {max_results}개의 비디오를 가져오기 시작")
 
@@ -208,7 +208,6 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
             logging.info(f"API 요청 {page_count}: 다음 {min(50, max_results - len(video_items))}개 비디오 요청 중")
             response = youtube.search().list(
                 channelId=channel_id,
-                order='date',
                 type='video',
                 part='snippet,id',
                 maxResults=min(50, max_results - len(video_items)),
@@ -219,9 +218,6 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
             video_items.extend(new_items)
             
             logging.info(f"API 응답 {page_count}: {len(new_items)}개의 새 비디오 정보를 받음. 현재 총 {len(video_items)}개")
-
-            for item in new_items[:5]:  # 각 페이지의 처음 5개 항목만 로그
-                logging.info(f"비디오 정보 - ID: {item[0]}, 제목: {item[1]['title']}, 게시일: {item[1]['publishedAt']}")
 
             next_page_token = response.get('nextPageToken')
             if not next_page_token or len(video_items) >= max_results:
@@ -236,11 +232,14 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
     # publishedAt을 기준으로 최신순으로 정렬
     video_items.sort(key=lambda x: x[1]['publishedAt'], reverse=True)
 
+    # 필요한 만큼만 선택
+    final_results = video_items[:INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS]
+
     logging.info("최종 정렬된 비디오 목록 (최신 5개):")
-    for item in video_items[:5]:
+    for item in final_results[:5]:
         logging.info(f"비디오 ID: {item[0]}, 제목: {item[1]['title']}, 게시일: {item[1]['publishedAt']}")
 
-    return video_items[:max_results]
+    return final_results
     
 def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     playlist_items = []
@@ -772,6 +771,6 @@ def main():
         sys.exit(1)
     finally:
         logging.info("스크립트 실행 완료")
-                        
+
 if __name__ == "__main__":
     main()
