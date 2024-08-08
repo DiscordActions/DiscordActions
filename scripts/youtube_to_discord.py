@@ -704,6 +704,9 @@ def process_new_videos(youtube, videos: List[Tuple[str, Dict[str, Any]]], video_
 
         new_videos.append(create_video_data(youtube, video_id, snippet, content_details, live_streaming_details))
     
+    # 날짜순으로 정렬 (오래된 순)
+    new_videos.sort(key=lambda x: x['published_at'])
+    
     return new_videos
 
 def create_video_data(youtube, video_id: str, snippet: Dict[str, Any], content_details: Dict[str, Any], live_streaming_details: Dict[str, Any]) -> Dict[str, Any]:
@@ -754,9 +757,9 @@ def main():
         
         new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
         
-        # 채널 모드일 때는 오래된 순서부터 처리
-        if YOUTUBE_MODE == 'channels':
-            new_videos.reverse()
+        # 채널 모드와 검색 모드일 때는 오래된 순서부터 처리
+        if YOUTUBE_MODE in ['channels', 'search']:
+            new_videos = new_videos[::-1]  # 리스트를 뒤집어 최신 순으로 변경
         
         for video in new_videos:
             process_video(video, youtube, playlist_info)
