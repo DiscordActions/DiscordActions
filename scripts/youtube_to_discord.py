@@ -197,49 +197,37 @@ def fetch_videos(youtube, mode: str, channel_id: str, playlist_id: str, search_k
 def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     video_items = []
     next_page_token = None
-    max_results = max(INIT_MAX_RESULTS, MAX_RESULTS) * 2  # 더 많은 결과를 요청
+    max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
 
     logging.info(f"채널 ID: {channel_id}에서 최대 {max_results}개의 비디오를 가져오기 시작")
 
-    page_count = 0
     while len(video_items) < max_results:
-        page_count += 1
         try:
-            logging.info(f"API 요청 {page_count}: 다음 {min(50, max_results - len(video_items))}개 비디오 요청 중")
             response = youtube.search().list(
                 channelId=channel_id,
                 type='video',
                 part='snippet,id',
+                order='date',
                 maxResults=min(50, max_results - len(video_items)),
                 pageToken=next_page_token
             ).execute()
 
             new_items = [(item['id']['videoId'], item['snippet']) for item in response.get('items', [])]
             video_items.extend(new_items)
-            
-            logging.info(f"API 응답 {page_count}: {len(new_items)}개의 새 비디오 정보를 받음. 현재 총 {len(video_items)}개")
 
             next_page_token = response.get('nextPageToken')
-            if not next_page_token or len(video_items) >= max_results:
-                logging.info("다음 페이지 토큰 없음 또는 최대 결과 도달. 루프 종료")
+            if not next_page_token:
                 break
         except Exception as e:
             logging.error(f"비디오 정보를 가져오는 중 오류 발생: {e}")
             break
 
-    logging.info(f"총 {len(video_items)}개의 비디오 정보를 가져옴")
-
-    # publishedAt을 기준으로 최신순으로 정렬
-    video_items.sort(key=lambda x: x[1]['publishedAt'], reverse=True)
-
-    # 필요한 만큼만 선택
-    final_results = video_items[:INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS]
-
-    logging.info("최종 정렬된 비디오 목록 (최신 5개):")
-    for item in final_results[:5]:
-        logging.info(f"비디오 ID: {item[0]}, 제목: {item[1]['title']}, 게시일: {item[1]['publishedAt']}")
-
-    return final_results
+    video_items = video_items[:max_results]
+    
+    # 오래된 순서로 정렬
+    video_items.sort(key=lambda x: x[1]['publishedAt'])
+    
+    return video_items
     
 def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     playlist_items = []
@@ -677,6 +665,7 @@ def process_new_videos(youtube, videos: List[Tuple[str, Dict[str, Any]]], video_
     logging.info(f"DATE_FILTER_YOUTUBE: {DATE_FILTER_YOUTUBE}")
     logging.info(f"Date filter parsed - since: {since_date}, until: {until_date}, past: {past_date}")
     
+    # 오래된 순서대로 비디오를 처리
     for video_id, snippet in videos:
         if video_id not in video_details_dict:
             logging.warning(f"비디오 세부 정보를 찾을 수 없음: {video_id}")
@@ -792,6 +781,6 @@ def main():
         sys.exit(1)
     finally:
         logging.info("스크립트 실행 완료")
-        
+
 if __name__ == "__main__":
     main()
