@@ -185,28 +185,20 @@ def save_video(video_data: Dict[str, Any]) -> None:
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=5), retry_error_callback=lambda retry_state: None)
 def fetch_videos(youtube, mode: str, channel_id: str, playlist_id: str, search_keyword: str) -> List[Tuple[str, Dict[str, Any]]]:
-    """유튜브에서 비디오 목록을 가져옵니다."""
-    try:
-        if mode == 'channels':
-            return fetch_channel_videos(youtube, channel_id)
-        elif mode == 'playlists':
-            return fetch_playlist_videos(youtube, playlist_id)
-        elif mode == 'search':
-            return fetch_search_videos(youtube, search_keyword)
-        else:
-            raise ValueError("잘못된 모드입니다.")
-    except HttpError as e:
-        logging.error(f"비디오 목록을 가져오는 중 오류 발생: {e}")
-        raise YouTubeAPIError("유튜브 API 호출 중 오류 발생")
-    except Exception as e:
-        logging.error(f"비디오 목록을 가져오는 중 알 수 없는 오류 발생: {e}")
-        raise YouTubeAPIError("유튜브 API 호출 중 알 수 없는 오류 발생")
+    if mode == 'channels':
+        return fetch_channel_videos(youtube, channel_id)
+    elif mode == 'playlists':
+        return fetch_playlist_videos(youtube, playlist_id)
+    elif mode == 'search':
+        return fetch_search_videos(youtube, search_keyword)
+    else:
+        raise ValueError("잘못된 모드입니다.")
 
 def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, Any]]]:
     video_items = []
     next_page_token = None
     max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
-    
+
     while len(video_items) < max_results:
         try:
             response = youtube.search().list(
@@ -221,15 +213,12 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
             video_items.extend([(item['id']['videoId'], item['snippet']) for item in response.get('items', [])])
             
             next_page_token = response.get('nextPageToken')
-            if not next_page_token:
+            if not next_page_token or len(video_items) >= max_results:
                 break
         except Exception as e:
-            logging.error(f"Error fetching videos: {e}")
+            logging.error(f"Error fetching channel videos: {e}")
             break
 
-    # 최신순으로 정렬 (publishedAt 기준 내림차순)
-    video_items.sort(key=lambda x: x[1]['publishedAt'], reverse=True)
-    
     return video_items[:max_results]
 
 def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str, Any]]]:
@@ -273,7 +262,7 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
     video_items = []
     next_page_token = None
     max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
-    
+
     while len(video_items) < max_results:
         try:
             response = youtube.search().list(
@@ -288,15 +277,12 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
             video_items.extend([(item['id']['videoId'], item['snippet']) for item in response.get('items', [])])
             
             next_page_token = response.get('nextPageToken')
-            if not next_page_token:
+            if not next_page_token or len(video_items) >= max_results:
                 break
         except Exception as e:
-            logging.error(f"Error fetching videos: {e}")
+            logging.error(f"Error fetching search videos: {e}")
             break
 
-    # 최신순으로 정렬 (publishedAt 기준 내림차순)
-    video_items.sort(key=lambda x: x[1]['publishedAt'], reverse=True)
-    
     return video_items[:max_results]
 
 def get_channel_thumbnail(youtube, channel_id: str) -> str:
@@ -745,11 +731,13 @@ def main():
         youtube = build_youtube_client()
         playlist_info = fetch_playlist_info_if_needed(youtube)
         videos = fetch_videos(youtube, YOUTUBE_MODE, YOUTUBE_CHANNEL_ID, YOUTUBE_PLAYLIST_ID, YOUTUBE_SEARCH_KEYWORD)
+        
+        logging.info(f"가져온 비디오 수: {len(videos)}")
+        
         video_ids = [video[0] for video in videos]
         video_details_dict = get_video_details_dict(youtube, video_ids)
         existing_video_ids = get_existing_video_ids()
         
-        # 기본값으로 날짜 필터 설정
         since_date, until_date, past_date = parse_date_filter(DATE_FILTER_YOUTUBE) if DATE_FILTER_YOUTUBE else (None, None, None)
         
         new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
@@ -758,10 +746,11 @@ def main():
         if YOUTUBE_MODE in ['channels', 'search']:
             new_videos.sort(key=lambda x: x['published_at'])
         
+        logging.info(f"처리할 새로운 비디오 수: {len(new_videos)}")
+        
         for video in new_videos:
             process_video(video, youtube, playlist_info)
 
-        logging.info(f"새로운 비디오 수: {len(new_videos)}")
         log_execution_info()
         
     except YouTubeAPIError as e:
@@ -775,6 +764,6 @@ def main():
         sys.exit(1)
     finally:
         logging.info("스크립트 실행 완료")
-
+        
 if __name__ == "__main__":
     main()
