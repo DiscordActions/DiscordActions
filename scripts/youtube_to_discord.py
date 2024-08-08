@@ -207,9 +207,8 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
     next_page_token = None
     max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
     results_per_page = 50
-    required_pages = (max_results // results_per_page) + (1 if max_results % results_per_page != 0 else 0)
 
-    for _ in range(required_pages):
+    while len(video_items) < max_results:
         response = youtube.search().list(
             channelId=channel_id,
             order='date',
@@ -218,13 +217,13 @@ def fetch_channel_videos(youtube, channel_id: str) -> List[Tuple[str, Dict[str, 
             maxResults=results_per_page,
             pageToken=next_page_token
         ).execute()
-        
+
         video_items.extend([(item['id']['videoId'], item['snippet']) for item in response.get('items', [])])
         
         next_page_token = response.get('nextPageToken')
         if not next_page_token:
             break
-    
+
     video_items.sort(key=lambda x: x[1]['publishedAt'])
     return video_items[:max_results]
 
@@ -233,9 +232,8 @@ def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str
     next_page_token = None
     max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
     results_per_page = 50
-    required_pages = (max_results // results_per_page) + (1 if max_results % results_per_page != 0 else 0)
 
-    for _ in range(required_pages):
+    while len(playlist_items) < max_results:
         playlist_request = youtube.playlistItems().list(
             part="snippet",
             playlistId=playlist_id,
@@ -271,9 +269,8 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
     next_page_token = None
     max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
     results_per_page = 50
-    required_pages = (max_results // results_per_page) + (1 if max_results % results_per_page != 0 else 0)
 
-    for _ in range(required_pages):
+    while len(video_items) < max_results:
         response = youtube.search().list(
             q=search_keyword,
             order='date',
@@ -282,13 +279,13 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
             maxResults=results_per_page,
             pageToken=next_page_token
         ).execute()
-        
+
         video_items.extend([(item['id']['videoId'], item['snippet']) for item in response.get('items', [])])
         
         next_page_token = response.get('nextPageToken')
         if not next_page_token:
             break
-    
+
     video_items.sort(key=lambda x: x[1]['publishedAt'])
     return video_items[:max_results]
 
