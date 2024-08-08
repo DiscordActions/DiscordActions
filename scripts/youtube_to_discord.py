@@ -239,12 +239,12 @@ def fetch_playlist_videos(youtube, playlist_id: str) -> List[Tuple[str, Dict[str
         playlist_items.extend(playlist_response['items'])
         
         next_page_token = playlist_response.get('nextPageToken')
-        if not next_page_token:
+        if not next_page_token or len(playlist_items) >= max_results:
             break
 
-    playlist_items = sort_playlist_items(playlist_items)
+    playlist_items = sort_playlist_items(playlist_items[:max_results])
     
-    return [(item['snippet']['resourceId']['videoId'], item['snippet']) for item in playlist_items[:max_results]]
+    return [(item['snippet']['resourceId']['videoId'], item['snippet']) for item in playlist_items]
 
 def sort_playlist_items(playlist_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     playlist_items.sort(key=lambda x: x['snippet']['position'])  # 기본값은 position으로 설정
@@ -764,6 +764,6 @@ def main():
         sys.exit(1)
     finally:
         logging.info("스크립트 실행 완료")
-        
+                
 if __name__ == "__main__":
     main()
