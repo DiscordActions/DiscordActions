@@ -38,7 +38,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install google-api-python-client requests isodate
+          pip install google-api-python-client requests isodate tenacity
           sudo apt-get install sqlite3
 
       - name: Get workflow ID
