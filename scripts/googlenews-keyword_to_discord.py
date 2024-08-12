@@ -12,6 +12,7 @@ import pytz
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode, unquote, quote
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timedelta
+from dateutil import parser
 from bs4 import BeautifulSoup
 from requests.exceptions import RequestException, HTTPError, ConnectionError, Timeout
 
@@ -652,27 +653,31 @@ def parse_date_filter(filter_string):
     return since_date, until_date, past_date
 
 def is_within_date_range(pub_date, since_date, until_date, past_date):
-    pub_datetime = parser.parse(pub_date).replace(tzinfo=pytz.UTC)
-    now = datetime.now(pytz.UTC)
-    
-    logging.info(f"검사 중인 기사 날짜: {pub_datetime}")
-    logging.info(f"현재 날짜: {now}")
-    logging.info(f"설정된 필터 - since_date: {since_date}, until_date: {until_date}, past_date: {past_date}")
+    try:
+        pub_datetime = parser.parse(pub_date).replace(tzinfo=pytz.UTC)
+        now = datetime.now(pytz.UTC)
+        
+        logging.info(f"검사 중인 기사 날짜: {pub_datetime}")
+        logging.info(f"현재 날짜: {now}")
+        logging.info(f"설정된 필터 - since_date: {since_date}, until_date: {until_date}, past_date: {past_date}")
 
-    if past_date:
-        result = pub_datetime >= past_date
-        logging.info(f"past_date 필터 적용 결과: {result}")
-        return result
-    
-    if since_date and pub_datetime < since_date:
-        logging.info(f"since_date 필터에 의해 제외됨")
+        if past_date:
+            result = pub_datetime >= past_date
+            logging.info(f"past_date 필터 적용 결과: {result}")
+            return result
+        
+        if since_date and pub_datetime < since_date:
+            logging.info(f"since_date 필터에 의해 제외됨")
+            return False
+        if until_date and pub_datetime > until_date:
+            logging.info(f"until_date 필터에 의해 제외됨")
+            return False
+        
+        logging.info(f"모든 날짜 필터를 통과함")
+        return True
+    except Exception as e:
+        logging.error(f"날짜 처리 중 오류 발생: {e}")
         return False
-    if until_date and pub_datetime > until_date:
-        logging.info(f"until_date 필터에 의해 제외됨")
-        return False
-    
-    logging.info(f"모든 날짜 필터를 통과함")
-    return True
 
 def get_rss_url():
     rss_base_url = "https://news.google.com/rss/search"
