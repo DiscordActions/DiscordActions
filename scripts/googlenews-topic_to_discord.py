@@ -1265,7 +1265,7 @@ def convert_to_local_time(pub_date, country_code):
         return pub_date
 
     if country_code in country_configs:
-        _, _, _, _, _, _, _, timezone, date_format = country_configs[country_code]
+        _, _, _, _, _, _, timezone, date_format = country_configs[country_code]
         local_time = utc_time.astimezone(pytz.timezone(timezone))
         return local_time.strftime(date_format)
     else:
@@ -1275,21 +1275,24 @@ def parse_rss_date(pub_date, country_code):
     return convert_to_local_time(pub_date, country_code)
 
 def format_discord_message(news_item, news_prefix, category, topic_name, country_emoji, country_code):
-    """Discord 메시지를 포맷팅합니다."""
-    formatted_date = parse_rss_date(news_item['pub_date'], country_code)
+    try:
+        formatted_date = parse_rss_date(news_item['pub_date'], country_code)
 
-    discord_source = f"`{news_prefix} - {category} - {topic_name} {country_emoji}`"
+        discord_source = f"`{news_prefix} - {category} - {topic_name} {country_emoji}`"
 
-    message = f"{discord_source}\n**{news_item['title']}**\n{news_item['link']}"
-    
-    if news_item['description']:
-        message += f"\n>>> {news_item['description']}\n\n"
-    else:
-        message += "\n\n"
-    
-    message += f"📅 {formatted_date}"
-    return message
-
+        message = f"{discord_source}\n**{news_item['title']}**\n{news_item['link']}"
+        
+        if news_item['description']:
+            message += f"\n>>> {news_item['description']}\n\n"
+        else:
+            message += "\n\n"
+        
+        message += f"📅 {formatted_date}"
+        return message
+    except Exception as e:
+        logging.error(f"메시지 포맷팅 중 오류 발생: {e}")
+        return None
+	    
 def send_discord_message(webhook_url, message, avatar_url=None, username=None, max_retries=3, retry_delay=5):
     """Discord 웹훅을 사용하여 메시지를 전송합니다. 실패 시 재시도합니다."""
     payload = {"content": message}
@@ -1436,7 +1439,8 @@ def main():
         logging.debug(f"ORIGIN_LINK_TOPIC 값: {ORIGIN_LINK_TOPIC}")
 
         rss_data = fetch_rss_feed(rss_url)
-        news_items = parse_rss_feed(rss_data)
+        root = ET.fromstring(rss_data)
+        news_items = root.findall('.//item')
         
         total_items = len(news_items)
         logging.info(f"총 {total_items}개의 뉴스 항목을 가져왔습니다.")
@@ -1446,7 +1450,7 @@ def main():
         session = requests.Session()
         
         if INITIALIZE_TOPIC:
-            news_items = sorted(news_items, key=lambda item: parse_pub_date(item.find('pubDate').text))
+            news_items = sorted(news_items, key=lambda item: parsedate_to_datetime(item.find('pubDate').text))
             logging.info("초기 실행: 뉴스 항목을 날짜 순으로 정렬했습니다.")
         else:
             new_items = [item for item in reversed(news_items) if not is_guid_posted(item.find('guid').text)]
@@ -1506,17 +1510,18 @@ def main():
                     country_code
                 )
                 
-                send_discord_message(
-                    DISCORD_WEBHOOK_TOPIC,
-                    discord_message,
-                    avatar_url=DISCORD_AVATAR_TOPIC,
-                    username=DISCORD_USERNAME_TOPIC
-                )
+                if discord_message:
+                    send_discord_message(
+                        DISCORD_WEBHOOK_TOPIC,
+                        discord_message,
+                        avatar_url=DISCORD_AVATAR_TOPIC,
+                        username=DISCORD_USERNAME_TOPIC
+                    )
 
-                save_news_item(pub_date, guid, title, link, TOPIC_KEYWORD if TOPIC_MODE else "general", related_news_json)
+                    save_news_item(pub_date, guid, title, link, TOPIC_KEYWORD if TOPIC_MODE else "general", related_news_json)
 
-                processed_count += 1
-                logging.info(f"뉴스 항목 처리 완료: {title}")
+                    processed_count += 1
+                    logging.info(f"뉴스 항목 처리 완료: {title}")
 
             except Exception as e:
                 logging.error(f"뉴스 항목 '{item.find('title').text if item.find('title') is not None else 'Unknown'}' 처리 중 오류 발생: {e}", exc_info=True)
@@ -1527,7 +1532,7 @@ def main():
     except Exception as e:
         logging.error(f"프로그램 실행 중 오류 발생: {e}", exc_info=True)
         sys.exit(1)
-
+	    
 if __name__ == "__main__":
     try:
         check_env_variables()
