@@ -225,7 +225,7 @@ def parse_date_filter(filter_string: str) -> Tuple[datetime, datetime, datetime]
     else:
         logging.warning("past: 형식의 날짜 필터를 찾을 수 없습니다.")
 
-	logging.info(f"최종 파싱 결과 - since_date: {since_date}, until_date: {until_date}, past_date: {past_date}")
+    logging.info(f"최종 파싱 결과 - since_date: {since_date}, until_date: {until_date}, past_date: {past_date}")
     return since_date, until_date, past_date
 
 def is_within_date_range(published_at: str, since_date: datetime, until_date: datetime, past_date: datetime) -> bool:
