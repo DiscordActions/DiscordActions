@@ -123,12 +123,26 @@ def check_env_variables() -> Dict[str, Any]:
 
     logging.info("환경 변수 검증 완료")
     
-    # 안전하게 로깅할 수 있는 변수들만 출력
-    safe_vars = ['YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_SEARCH_SORT', 'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 
-                 'INITIALIZE_MODE_YOUTUBE', 'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW', 'YOUTUBE_SEARCH_ORDER']
-    for var in safe_vars:
-        if var in env_vars:
-            logging.info(f"{var}: {env_vars[var]}")
+    # 직접 로깅
+    logging.info(f"YouTube 모드: {env_vars['YOUTUBE_MODE']}")
+    logging.info(f"YouTube 초기화 모드: {env_vars['INITIALIZE_MODE_YOUTUBE']}")
+    logging.info(f"YouTube 최대 초기 결과 수: {env_vars['YOUTUBE_INIT_MAX_RESULTS']}")
+    logging.info(f"YouTube 최대 결과 수: {env_vars['YOUTUBE_MAX_RESULTS']}")
+    logging.info(f"YouTube 언어 설정: {env_vars['LANGUAGE_YOUTUBE']}")
+    logging.info(f"YouTube 상세 보기 설정: {env_vars['YOUTUBE_DETAILVIEW']}")
+
+    if env_vars['YOUTUBE_MODE'] == 'channels':
+        logging.info(f"YouTube 채널 ID: {env_vars['YOUTUBE_CHANNEL_ID']}")
+    elif env_vars['YOUTUBE_MODE'] == 'playlists':
+        logging.info(f"YouTube 재생목록 ID: {env_vars['YOUTUBE_PLAYLIST_ID']}")
+        logging.info(f"YouTube 재생목록 정렬: {env_vars['YOUTUBE_PLAYLIST_SORT']}")
+    elif env_vars['YOUTUBE_MODE'] == 'search':
+        logging.info(f"YouTube 검색 키워드: {env_vars['YOUTUBE_SEARCH_KEYWORD']}")
+        logging.info(f"YouTube 검색 정렬: {env_vars['YOUTUBE_SEARCH_SORT']}")
+        logging.info(f"YouTube 검색 순서: {env_vars['YOUTUBE_SEARCH_ORDER']}")
+
+    logging.info(f"고급 필터 설정: {env_vars['ADVANCED_FILTER_YOUTUBE']}")
+    logging.info(f"날짜 필터 설정: {env_vars['DATE_FILTER_YOUTUBE']}")
 
     return env_vars
 	
@@ -932,6 +946,10 @@ def process_videos(youtube, videos, info):
         save_video(video)
         send_discord_messages(video, youtube, info)
     
+    # 직접 로깅
+    logging.info(f"총 처리된 동영상 수: {len(new_videos)}")
+    logging.info(f"날짜 필터에 의해 제외된 동영상 수: {len(videos) - len(new_videos)}")
+    
     return new_videos
 	
 def send_discord_messages(video, youtube, info):
@@ -945,25 +963,24 @@ def send_discord_messages(video, youtube, info):
         detailed_message = create_embed_message(video, youtube)
         send_to_discord(detailed_message, is_embed=True, is_detail=True)
 
-def log_execution_info():
-    logging.info("실행 정보 로깅")
-    logging.info(f"처리된 총 동영상 수: {len(new_videos)}")
-    logging.info(f"YouTube 모드: {YOUTUBE_MODE}")
-    if YOUTUBE_MODE == 'search':
-        logging.info(f"YouTube 검색 정렬: {YOUTUBE_SEARCH_SORT}")
-    logging.info(f"언어 설정: {LANGUAGE_YOUTUBE}")
-
 # 메인 실행 함수
 def main():
     try:
-        check_env_variables()
+        env_vars = check_env_variables()
         initialize_database_if_needed()
         youtube = build_youtube_client()
 
-        global new_videos  # new_videos를 전역 변수로 선언
         videos, playlist_info = fetch_video_data(youtube)
         new_videos = process_videos(youtube, videos, playlist_info)
-        log_execution_info()
+        
+        # 직접 로깅
+        logging.info(f"실행 정보 요약:")
+        logging.info(f"- YouTube 모드: {env_vars['YOUTUBE_MODE']}")
+        logging.info(f"- 처리된 총 동영상 수: {len(new_videos)}")
+        if env_vars['YOUTUBE_MODE'] == 'search':
+            logging.info(f"- YouTube 검색 키워드: {env_vars['YOUTUBE_SEARCH_KEYWORD']}")
+            logging.info(f"- YouTube 검색 정렬: {env_vars['YOUTUBE_SEARCH_SORT']}")
+        logging.info(f"- 언어 설정: {env_vars['LANGUAGE_YOUTUBE']}")
         
     except YouTubeAPIError as e:
         logging.error(f"YouTube API 오류 발생: {e}")
