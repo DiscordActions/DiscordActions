@@ -37,12 +37,6 @@ DISCORD_USERNAME_YOUTUBE = os.getenv('DISCORD_USERNAME_YOUTUBE', '').strip()
 LANGUAGE_YOUTUBE = os.getenv('LANGUAGE_YOUTUBE', 'English')
 YOUTUBE_DETAILVIEW = os.getenv('YOUTUBE_DETAILVIEW', 'false').lower() == 'true'
 
-# 전역 변수: 디스코드 메시지 전송을 위한 변수
-discord_message_count = 0
-discord_message_reset_time = time.time()
-category_cache = {}
-logger, log_env_variables = setup_logging()
-
 # 로깅 설정
 def setup_logging():
     class CustomFormatter(logging.Formatter):
@@ -79,6 +73,12 @@ def setup_logging():
                     logger.info(f"{key}: {value}")
 
     return logger, log_env_variables
+
+# 전역 변수: 디스코드 메시지 전송을 위한 변수
+discord_message_count = 0
+discord_message_reset_time = time.time()
+category_cache = {}
+logger, log_env_variables = setup_logging()
 
 # 사용자 정의 예외
 class YouTubeAPIError(Exception):
