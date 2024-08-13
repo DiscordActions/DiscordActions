@@ -720,15 +720,18 @@ def main():
 
         session = requests.Session()
         
-        if INITIALIZE_TOP:
-            news_items = sorted(news_items, key=lambda item: parse_pub_date(item.find('pubDate').text))
-            logging.info("초기 실행: 뉴스 항목을 날짜 순으로 정렬했습니다.")
-        else:
-            new_items = [item for item in reversed(news_items) if not is_guid_posted(item.find('guid').text)]
-            news_items = new_items
-            logging.info(f"후속 실행: {len(news_items)}개의 새로운 뉴스 항목을 처리합니다.")
+        with sqlite3.connect(DB_PATH) as conn:
+            if INITIALIZE_TOP:
+                new_items = news_items
+                logging.info("초기 실행: 모든 뉴스 항목을 처리합니다.")
+            else:
+                new_items = [item for item in news_items if not is_guid_posted(item.find('guid').text)]
+                logging.info(f"후속 실행: {len(new_items)}개의 새로운 뉴스 항목을 처리합니다.")
 
-        if not news_items:
+        # 날짜를 기준으로 오래된 순서에서 최신 순서로 정렬
+        new_items.sort(key=lambda item: parser.parse(item.find('pubDate').text))
+
+        if not new_items:
             logging.info("처리할 새로운 뉴스 항목이 없습니다.")
             return
 
@@ -736,7 +739,7 @@ def main():
         logging.debug(f"적용된 날짜 필터 - since: {since_date}, until: {until_date}, past: {past_date}")
 
         processed_count = 0
-        for item in news_items:
+        for item in new_items:
             try:
                 pub_date = item.find('pubDate').text
                 if not is_within_date_range(pub_date, since_date, until_date, past_date):
@@ -785,7 +788,7 @@ def main():
     except Exception as e:
         logging.error(f"프로그램 실행 중 오류 발생: {e}", exc_info=True)
         sys.exit(1)
-
+        
 if __name__ == "__main__":
     try:
         check_env_variables()
