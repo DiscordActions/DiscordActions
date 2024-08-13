@@ -57,6 +57,7 @@ class DiscordWebhookError(Exception):
 
 # 유틸리티 함수
 def check_env_variables() -> Dict[str, Any]:
+    """환경 변수가 올바르게 설정되어 있는지 확인합니다."""
     env_vars = {}
 
     # 필수 환경 변수 검사
