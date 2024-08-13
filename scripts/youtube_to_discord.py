@@ -926,6 +926,12 @@ def send_discord_messages(video, youtube, info):
         detailed_message = create_embed_message(video, youtube)
         send_to_discord(detailed_message, is_embed=True, is_detail=True)
 
+def log_execution_info():
+    logging.info("실행 정보 로깅")
+    logging.info(f"처리된 총 비디오 수: {len(new_videos)}")
+    logging.info(f"YouTube 모드: {YOUTUBE_MODE}")
+    logging.info(f"언어 설정: {LANGUAGE_YOUTUBE}")
+
 # 메인 실행 함수
 def main():
     try:
@@ -933,6 +939,7 @@ def main():
         initialize_database_if_needed()
         youtube = build_youtube_client()
 
+        global new_videos  # new_videos를 전역 변수로 선언
         videos, playlist_info = fetch_video_data(youtube)
         new_videos = process_videos(youtube, videos, playlist_info)
         log_execution_info()
