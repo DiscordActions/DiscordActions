@@ -940,6 +940,8 @@ def process_videos(youtube, videos, info):
     if YOUTUBE_MODE == 'search':
         new_videos = sort_search_videos(new_videos)
     
+    logging.info(f"처리할 새로운 동영상 수: {len(new_videos)}")
+    
     for video in new_videos:
         save_video(video)
         send_discord_messages(video, youtube, info)
@@ -967,15 +969,15 @@ def main():
         videos, playlist_info = fetch_video_data(youtube)
         new_videos, excluded_count = process_videos(youtube, videos, playlist_info)
         
-        # 실행 정보 요약 (중복 제거 및 마스킹 방지)
-        print(f"실행 정보 요약:")
-        print(f"- YouTube 모드: {env_vars['YOUTUBE_MODE']}")
-        print(f"- 총 처리된 동영상 수: {len(new_videos)}")
-        print(f"- 제외된 동영상 수: {excluded_count}")
+        # 실행 정보 요약 (중복 제거)
+        logging.info("실행 정보 요약:")
+        logging.info(f"- YouTube 모드: {env_vars['YOUTUBE_MODE']}")
+        logging.info(f"- 총 처리된 동영상 수: {len(new_videos)}")
+        logging.info(f"- 제외된 동영상 수: {excluded_count}")
         if env_vars['YOUTUBE_MODE'] == 'search':
-            print(f"- YouTube 검색 키워드: {env_vars['YOUTUBE_SEARCH_KEYWORD']}")
-            print(f"- YouTube 검색 정렬: {env_vars['YOUTUBE_SEARCH_SORT']}")
-        print(f"- 언어 설정: {env_vars['LANGUAGE_YOUTUBE']}")
+            logging.info(f"- YouTube 검색 키워드: {env_vars['YOUTUBE_SEARCH_KEYWORD']}")
+            logging.info(f"- YouTube 검색 정렬: {env_vars['YOUTUBE_SEARCH_SORT']}")
+        logging.info(f"- 언어 설정: {env_vars['LANGUAGE_YOUTUBE']}")
         
     except YouTubeAPIError as e:
         logging.error(f"YouTube API 오류 발생: {e}")
@@ -987,7 +989,7 @@ def main():
         logging.error(f"예상치 못한 오류 발생: {e}", exc_info=True)
         sys.exit(1)
     finally:
-        print("스크립트 실행이 완료되었습니다.")
+        logging.info("스크립트 실행이 완료되었습니다.")
 	    
 if __name__ == "__main__":
     main()
