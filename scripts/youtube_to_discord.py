@@ -43,7 +43,37 @@ discord_message_reset_time = time.time()
 category_cache = {}
 
 # 로깅 설정
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+def setup_logging():
+    class CustomFormatter(logging.Formatter):
+        def format(self, record):
+            if record.levelno == logging.INFO:
+                self._style._fmt = "%(asctime)s - %(levelname)s - %(message)s"
+            else:
+                self._style._fmt = "%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
+            return super().format(record)
+
+    formatter = CustomFormatter(datefmt="%Y-%m-%d %H:%M:%S")
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    logger.addHandler(handler)
+
+    def log_env_variables():
+        sensitive_vars = ['YOUTUBE_API_KEY', 'DISCORD_WEBHOOK_YOUTUBE', 'DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW']
+        for key, value in os.environ.items():
+            if key.startswith('YOUTUBE_') or key.startswith('DISCORD_'):
+                if key in sensitive_vars:
+                    logger.info(f"{key}: [비공개]")
+                else:
+                    logger.info(f"{key}: {value}")
+
+    return logger, log_env_variables
+
+# 전역 변수로 logger 설정
+logger, log_env_variables = setup_logging()
 
 # 사용자 정의 예외
 class YouTubeAPIError(Exception):
@@ -86,7 +116,7 @@ def check_env_variables() -> Dict[str, Any]:
         env_vars['YOUTUBE_PLAYLIST_SORT'] = os.getenv('YOUTUBE_PLAYLIST_SORT', 'position').lower()
         valid_playlist_sorts = ['position', 'position_reverse', 'date_newest', 'date_oldest']
         if env_vars['YOUTUBE_PLAYLIST_SORT'] not in valid_playlist_sorts:
-            logging.warning(f"YOUTUBE_PLAYLIST_SORT 값 '{env_vars['YOUTUBE_PLAYLIST_SORT']}'가 유효하지 않습니다. 기본값 'position'으로 설정합니다.")
+            logger.warning(f"YOUTUBE_PLAYLIST_SORT 값 '{env_vars['YOUTUBE_PLAYLIST_SORT']}'가 유효하지 않습니다. 기본값 'position'으로 설정합니다.")
             env_vars['YOUTUBE_PLAYLIST_SORT'] = 'position'
     elif env_vars['YOUTUBE_MODE'] == 'search':
         if not os.getenv('YOUTUBE_SEARCH_KEYWORD'):
@@ -95,14 +125,14 @@ def check_env_variables() -> Dict[str, Any]:
         env_vars['YOUTUBE_SEARCH_SORT'] = os.getenv('YOUTUBE_SEARCH_SORT', 'date_oldest').lower()
         valid_search_sorts = ['date_newest', 'date_oldest', 'title_asc', 'title_desc']
         if env_vars['YOUTUBE_SEARCH_SORT'] not in valid_search_sorts:
-            logging.warning(f"YOUTUBE_SEARCH_SORT 값 '{env_vars['YOUTUBE_SEARCH_SORT']}'가 유효하지 않습니다. 기본값 'date_oldest'로 설정합니다.")
+            logger.warning(f"YOUTUBE_SEARCH_SORT 값 '{env_vars['YOUTUBE_SEARCH_SORT']}'가 유효하지 않습니다. 기본값 'date_oldest'로 설정합니다.")
             env_vars['YOUTUBE_SEARCH_SORT'] = 'date_oldest'
 
     # 선택적 환경 변수 설정 (기본값 사용)
     env_vars['YOUTUBE_SEARCH_ORDER'] = os.getenv('YOUTUBE_SEARCH_ORDER', 'date').lower()
     valid_search_orders = ['relevance', 'date', 'viewcount', 'rating']
     if env_vars['YOUTUBE_SEARCH_ORDER'] not in valid_search_orders:
-        logging.warning(f"YOUTUBE_SEARCH_ORDER 값 '{env_vars['YOUTUBE_SEARCH_ORDER']}'가 유효하지 않습니다. 기본값 'date'로 설정합니다.")
+        logger.warning(f"YOUTUBE_SEARCH_ORDER 값 '{env_vars['YOUTUBE_SEARCH_ORDER']}'가 유효하지 않습니다. 기본값 'date'로 설정합니다.")
         env_vars['YOUTUBE_SEARCH_ORDER'] = 'date'
 
     # YOUTUBE_INIT_MAX_RESULTS와 YOUTUBE_MAX_RESULTS 처리 개선
@@ -117,18 +147,18 @@ def check_env_variables() -> Dict[str, Any]:
     env_vars['DISCORD_USERNAME_YOUTUBE'] = os.getenv('DISCORD_USERNAME_YOUTUBE', '').strip()
     env_vars['LANGUAGE_YOUTUBE'] = os.getenv('LANGUAGE_YOUTUBE', 'English')
     if env_vars['LANGUAGE_YOUTUBE'] not in ['English', 'Korean']:
-        logging.warning(f"LANGUAGE_YOUTUBE 값 '{env_vars['LANGUAGE_YOUTUBE']}'가 유효하지 않습니다. 기본값 'English'로 설정합니다.")
+        logger.warning(f"LANGUAGE_YOUTUBE 값 '{env_vars['LANGUAGE_YOUTUBE']}'가 유효하지 않습니다. 기본값 'English'로 설정합니다.")
         env_vars['LANGUAGE_YOUTUBE'] = 'English'
     env_vars['YOUTUBE_DETAILVIEW'] = os.getenv('YOUTUBE_DETAILVIEW', 'false').lower() in ['true', '1', 'yes']
 
-    logging.info("환경 변수 검증 완료")
+    logger.info("환경 변수 검증 완료")
     
     # 안전하게 로깅할 수 있는 변수들만 출력
-    safe_vars = ['YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_SEARCH_SORT', 'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 
-                 'INITIALIZE_MODE_YOUTUBE', 'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW', 'YOUTUBE_SEARCH_ORDER']
+    safe_vars = ['YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_SEARCH_SORT', 'YOUTUBE_SEARCH_ORDER', 'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 
+                 'INITIALIZE_MODE_YOUTUBE', 'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW']
     for var in safe_vars:
         if var in env_vars:
-            logging.info(f"{var}: {env_vars[var]}")
+            logger.info(f"{var}: {env_vars[var]}")
 
     return env_vars
 	
@@ -517,7 +547,8 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
     search_order = os.getenv('YOUTUBE_SEARCH_ORDER', 'date').lower()
 
     logging.info(f"검색 키워드: '{search_keyword}'로 최대 {max_results}개의 동영상을 검색 중")
-    logging.info(f"검색 정렬 기준: {search_order}")
+    logging.info(f"검색 작동: {search_order}")
+    logging.info(f"검색 정렬: {search_sort}")
 
     while len(video_items) < max_results and api_calls < max_api_calls:
         try:
@@ -774,7 +805,9 @@ def create_discord_message(video: Dict[str, Any], formatted_published_at: str, v
 
 def create_korean_message(video: Dict[str, Any], formatted_published_at: str, video_url: str, playlist_info: Dict[str, str] = None) -> str:
     source_text = get_source_text_korean(video, playlist_info)
-    
+	
+    embed_link = f"https://www.youtube.com/embed/{video['video_id']}"
+	
     message = (
         f"{source_text}"
         f"**{video['title']}**\n"
@@ -949,13 +982,12 @@ def log_execution_info():
     logging.info("실행 정보 로깅")
     logging.info(f"처리된 총 동영상 수: {len(new_videos)}")
     logging.info(f"YouTube 모드: {YOUTUBE_MODE}")
-    if YOUTUBE_MODE == 'search':
-        logging.info(f"YouTube 검색 정렬: {YOUTUBE_SEARCH_SORT}")
     logging.info(f"언어 설정: {LANGUAGE_YOUTUBE}")
 
 # 메인 실행 함수
 def main():
     try:
+        log_env_variables()
         check_env_variables()
         initialize_database_if_needed()
         youtube = build_youtube_client()
