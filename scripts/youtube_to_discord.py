@@ -539,7 +539,7 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
 
     logging.info(f"검색 키워드: '{search_keyword}'로 최대 {max_results}개의 동영상을 검색 중")
     logging.info(f"검색 작동: {search_order}")
-    logging.info(f"검색 정렬: {search_sort}")
+    logging.info(f"검색 정렬: {YOUTUBE_SEARCH_SORT}")
 
     while len(video_items) < max_results and api_calls < max_api_calls:
         try:
