@@ -72,30 +72,25 @@ def check_env_variables() -> None:
         if not YOUTUBE_PLAYLIST_ID:
             raise ValueError("YOUTUBE_MODE가 'playlists'일 때 YOUTUBE_PLAYLIST_ID가 필요합니다.")
         if YOUTUBE_PLAYLIST_SORT not in ['position', 'position_reverse', 'date_newest', 'date_oldest']:
-            raise ValueError("YOUTUBE_PLAYLIST_SORT는 'position', 'position_reverse', 'date_newest', 'date_oldest' 중 하나여야 합니다.")
+            logging.warning(f"YOUTUBE_PLAYLIST_SORT 값 '{YOUTUBE_PLAYLIST_SORT}'가 유효하지 않습니다. 기본값 'position'으로 설정합니다.")
+            os.environ['YOUTUBE_PLAYLIST_SORT'] = 'position'
     elif mode == 'search' and not YOUTUBE_SEARCH_KEYWORD:
         raise ValueError("YOUTUBE_MODE가 'search'일 때 YOUTUBE_SEARCH_KEYWORD가 필요합니다.")
 
     valid_search_orders = ['relevance', 'date', 'viewcount', 'rating']
     if YOUTUBE_SEARCH_ORDER not in valid_search_orders:
-        logging.warning(f"YOUTUBE_SEARCH_ORDER 환경 변수 '{YOUTUBE_SEARCH_ORDER}'는 올바르지 않음. 기본값 'date'로 설정.")
+        logging.warning(f"YOUTUBE_SEARCH_ORDER 값 '{YOUTUBE_SEARCH_ORDER}'가 유효하지 않습니다. 기본값 'date'로 설정합니다.")
         os.environ['YOUTUBE_SEARCH_ORDER'] = 'date'
 
-    logging.info(f"YOUTUBE_SEARCH_ORDER: {os.getenv('YOUTUBE_SEARCH_ORDER')}")
-
-    for var in ['YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS']:
-        value = os.getenv(var)
-        if value and not value.isdigit():
-            raise ValueError(f"{var}는 숫자여야 합니다.")
-
-    for var in ['INITIALIZE_MODE_YOUTUBE', 'YOUTUBE_DETAILVIEW']:
-        value = os.getenv(var, '').lower()
-        if value and value not in ['true', 'false']:
-            raise ValueError(f"{var}는 'true' 또는 'false'여야 합니다.")
-
     if LANGUAGE_YOUTUBE not in ['English', 'Korean']:
-        logging.warning(f"LANGUAGE_YOUTUBE 환경 변수 '{LANGUAGE_YOUTUBE}'는 올바르지 않음. 기본값 'English'로 설정.")
+        logging.warning(f"LANGUAGE_YOUTUBE 값 '{LANGUAGE_YOUTUBE}'가 유효하지 않습니다. 기본값 'English'로 설정합니다.")
         os.environ['LANGUAGE_YOUTUBE'] = 'English'
+
+    try:
+        int(YOUTUBE_INIT_MAX_RESULTS)
+        int(YOUTUBE_MAX_RESULTS)
+    except ValueError:
+        raise ValueError("YOUTUBE_INIT_MAX_RESULTS와 YOUTUBE_MAX_RESULTS는 정수여야 합니다.")
 
     logging.info("환경 변수 검증 완료")
 
