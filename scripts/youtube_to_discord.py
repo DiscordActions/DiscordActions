@@ -41,6 +41,7 @@ YOUTUBE_DETAILVIEW = os.getenv('YOUTUBE_DETAILVIEW', 'false').lower() == 'true'
 discord_message_count = 0
 discord_message_reset_time = time.time()
 category_cache = {}
+logger, log_env_variables = setup_logging()
 
 # 로깅 설정
 def setup_logging():
@@ -62,18 +63,22 @@ def setup_logging():
     logger.addHandler(handler)
 
     def log_env_variables():
+        relevant_vars = [
+            'YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_SEARCH_SORT',
+            'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 'INITIALIZE_MODE_YOUTUBE',
+            'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW', 'YOUTUBE_SEARCH_ORDER'
+        ]
         sensitive_vars = ['YOUTUBE_API_KEY', 'DISCORD_WEBHOOK_YOUTUBE', 'DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW']
-        for key, value in os.environ.items():
-            if key.startswith('YOUTUBE_') or key.startswith('DISCORD_'):
+        
+        for key in relevant_vars:
+            value = os.getenv(key)
+            if value:
                 if key in sensitive_vars:
-                    logger.info(f"{key}: [비공개]")
+                    logger.info(f"{key}: [REDACTED]")
                 else:
                     logger.info(f"{key}: {value}")
 
     return logger, log_env_variables
-
-# 전역 변수로 logger 설정
-logger, log_env_variables = setup_logging()
 
 # 사용자 정의 예외
 class YouTubeAPIError(Exception):
@@ -135,16 +140,9 @@ def check_env_variables() -> Dict[str, Any]:
         logger.warning(f"YOUTUBE_SEARCH_ORDER 값 '{env_vars['YOUTUBE_SEARCH_ORDER']}'가 유효하지 않습니다. 기본값 'date'로 설정합니다.")
         env_vars['YOUTUBE_SEARCH_ORDER'] = 'date'
 
-    # YOUTUBE_INIT_MAX_RESULTS와 YOUTUBE_MAX_RESULTS 처리 개선
     env_vars['YOUTUBE_INIT_MAX_RESULTS'] = int(os.getenv('YOUTUBE_INIT_MAX_RESULTS') or '50')
     env_vars['YOUTUBE_MAX_RESULTS'] = int(os.getenv('YOUTUBE_MAX_RESULTS') or '10')
-
     env_vars['INITIALIZE_MODE_YOUTUBE'] = os.getenv('INITIALIZE_MODE_YOUTUBE', 'false').lower() in ['true', '1', 'yes']
-    env_vars['ADVANCED_FILTER_YOUTUBE'] = os.getenv('ADVANCED_FILTER_YOUTUBE', '')
-    env_vars['DATE_FILTER_YOUTUBE'] = os.getenv('DATE_FILTER_YOUTUBE', '')
-    env_vars['DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW'] = os.getenv('DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW', '')
-    env_vars['DISCORD_AVATAR_YOUTUBE'] = os.getenv('DISCORD_AVATAR_YOUTUBE', '').strip()
-    env_vars['DISCORD_USERNAME_YOUTUBE'] = os.getenv('DISCORD_USERNAME_YOUTUBE', '').strip()
     env_vars['LANGUAGE_YOUTUBE'] = os.getenv('LANGUAGE_YOUTUBE', 'English')
     if env_vars['LANGUAGE_YOUTUBE'] not in ['English', 'Korean']:
         logger.warning(f"LANGUAGE_YOUTUBE 값 '{env_vars['LANGUAGE_YOUTUBE']}'가 유효하지 않습니다. 기본값 'English'로 설정합니다.")
@@ -153,15 +151,8 @@ def check_env_variables() -> Dict[str, Any]:
 
     logger.info("환경 변수 검증 완료")
     
-    # 안전하게 로깅할 수 있는 변수들만 출력
-    safe_vars = ['YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_SEARCH_SORT', 'YOUTUBE_SEARCH_ORDER', 'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 
-                 'INITIALIZE_MODE_YOUTUBE', 'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW']
-    for var in safe_vars:
-        if var in env_vars:
-            logger.info(f"{var}: {env_vars[var]}")
-
     return env_vars
-	
+
 def parse_duration(duration: str) -> str:
     """영상 길이를 파싱합니다."""
     parsed_duration = isodate.parse_duration(duration)
