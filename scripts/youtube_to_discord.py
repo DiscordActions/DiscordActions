@@ -56,7 +56,6 @@ class DiscordWebhookError(Exception):
 
 # 유틸리티 함수
 def check_env_variables() -> Dict[str, Any]:
-    """환경 변수를 검사하고 설정합니다."""
     env_vars = {}
 
     # 필수 환경 변수 검사
@@ -99,9 +98,11 @@ def check_env_variables() -> Dict[str, Any]:
         logging.warning(f"YOUTUBE_SEARCH_ORDER 값 '{env_vars['YOUTUBE_SEARCH_ORDER']}'가 유효하지 않습니다. 기본값 'date'로 설정합니다.")
         env_vars['YOUTUBE_SEARCH_ORDER'] = 'date'
 
-    env_vars['YOUTUBE_INIT_MAX_RESULTS'] = int(os.getenv('YOUTUBE_INIT_MAX_RESULTS', '50'))
-    env_vars['YOUTUBE_MAX_RESULTS'] = int(os.getenv('YOUTUBE_MAX_RESULTS', '10'))
-    env_vars['INITIALIZE_MODE_YOUTUBE'] = os.getenv('INITIALIZE_MODE_YOUTUBE', 'false').lower() == 'true'
+    # YOUTUBE_INIT_MAX_RESULTS와 YOUTUBE_MAX_RESULTS 처리 개선
+    env_vars['YOUTUBE_INIT_MAX_RESULTS'] = int(os.getenv('YOUTUBE_INIT_MAX_RESULTS') or '50')
+    env_vars['YOUTUBE_MAX_RESULTS'] = int(os.getenv('YOUTUBE_MAX_RESULTS') or '10')
+
+    env_vars['INITIALIZE_MODE_YOUTUBE'] = os.getenv('INITIALIZE_MODE_YOUTUBE', 'false').lower() in ['true', '1', 'yes']
     env_vars['ADVANCED_FILTER_YOUTUBE'] = os.getenv('ADVANCED_FILTER_YOUTUBE', '')
     env_vars['DATE_FILTER_YOUTUBE'] = os.getenv('DATE_FILTER_YOUTUBE', '')
     env_vars['DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW'] = os.getenv('DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW', '')
@@ -111,7 +112,7 @@ def check_env_variables() -> Dict[str, Any]:
     if env_vars['LANGUAGE_YOUTUBE'] not in ['English', 'Korean']:
         logging.warning(f"LANGUAGE_YOUTUBE 값 '{env_vars['LANGUAGE_YOUTUBE']}'가 유효하지 않습니다. 기본값 'English'로 설정합니다.")
         env_vars['LANGUAGE_YOUTUBE'] = 'English'
-    env_vars['YOUTUBE_DETAILVIEW'] = os.getenv('YOUTUBE_DETAILVIEW', 'false').lower() == 'true'
+    env_vars['YOUTUBE_DETAILVIEW'] = os.getenv('YOUTUBE_DETAILVIEW', 'false').lower() in ['true', '1', 'yes']
 
     logging.info("환경 변수 검증 완료")
     
@@ -123,14 +124,7 @@ def check_env_variables() -> Dict[str, Any]:
             logging.info(f"{var}: {env_vars[var]}")
 
     return env_vars
-
-# 환경 변수 설정
-try:
-    ENV = check_env_variables()
-except ValueError as e:
-    logging.error(f"환경 변수 설정 중 오류 발생: {e}")
-    raise SystemExit(1)
-	
+		
 def parse_duration(duration: str) -> str:
     """영상 길이를 파싱합니다."""
     parsed_duration = isodate.parse_duration(duration)
