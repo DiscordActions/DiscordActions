@@ -37,57 +37,13 @@ DISCORD_USERNAME_YOUTUBE = os.getenv('DISCORD_USERNAME_YOUTUBE', '').strip()
 LANGUAGE_YOUTUBE = os.getenv('LANGUAGE_YOUTUBE', 'English')
 YOUTUBE_DETAILVIEW = os.getenv('YOUTUBE_DETAILVIEW', 'false').lower() == 'true'
 
-# 로깅 설정
-def setup_logging():
-    class CustomFormatter(logging.Formatter):
-        def format(self, record):
-            if record.levelno == logging.INFO:
-                self._style._fmt = "%(asctime)s - %(levelname)s - %(message)s"
-            else:
-                self._style._fmt = "%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"
-            return super().format(record)
-
-    formatter = CustomFormatter(datefmt="%Y-%m-%d %H:%M:%S")
-
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(formatter)
-
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    logger.addHandler(handler)
-
-    def custom_info(message):
-        for char in message:
-            print(char, end='', flush=True)
-        print()
-
-    return logger, custom_info
-
-logger, custom_info = setup_logging()
-
-def log_env_variables():
-    relevant_vars = [
-        'YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_SEARCH_SORT',
-        'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 'INITIALIZE_MODE_YOUTUBE',
-        'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW', 'YOUTUBE_SEARCH_ORDER'
-    ]
-    sensitive_vars = ['YOUTUBE_API_KEY', 'DISCORD_WEBHOOK_YOUTUBE', 'DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW']
-    
-    for key in relevant_vars:
-        value = os.getenv(key)
-        if value:
-            if key in sensitive_vars:
-                custom_info(f"{key}: [REDACTED]")
-            else:
-                custom_info(f"{key}: {value}")
-
-log_env_variables()
-
-# 전역 변수
-logger, custom_info = setup_logging()
+# 전역 변수: 디스코드 메시지 전송을 위한 변수
 discord_message_count = 0
 discord_message_reset_time = time.time()
 category_cache = {}
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # 사용자 정의 예외
 class YouTubeAPIError(Exception):
@@ -104,6 +60,7 @@ def check_env_variables() -> Dict[str, Any]:
     """환경 변수가 올바르게 설정되어 있는지 확인합니다."""
     env_vars = {}
 
+    # 필수 환경 변수 검사
     required_vars = ['YOUTUBE_API_KEY', 'YOUTUBE_MODE', 'DISCORD_WEBHOOK_YOUTUBE']
     for var in required_vars:
         value = os.getenv(var)
@@ -111,11 +68,13 @@ def check_env_variables() -> Dict[str, Any]:
             raise ValueError(f"필수 환경 변수 '{var}'가 설정되지 않았습니다.")
         env_vars[var] = value
 
+    # YOUTUBE_MODE 검사
     valid_modes = ['channels', 'playlists', 'search']
     if env_vars['YOUTUBE_MODE'].lower() not in valid_modes:
         raise ValueError(f"YOUTUBE_MODE는 {', '.join(valid_modes)} 중 하나여야 합니다.")
     env_vars['YOUTUBE_MODE'] = env_vars['YOUTUBE_MODE'].lower()
 
+    # YOUTUBE_MODE에 따른 추가 검사
     if env_vars['YOUTUBE_MODE'] == 'channels':
         if not os.getenv('YOUTUBE_CHANNEL_ID'):
             raise ValueError("YOUTUBE_MODE가 'channels'일 때 YOUTUBE_CHANNEL_ID가 필요합니다.")
@@ -127,7 +86,7 @@ def check_env_variables() -> Dict[str, Any]:
         env_vars['YOUTUBE_PLAYLIST_SORT'] = os.getenv('YOUTUBE_PLAYLIST_SORT', 'position').lower()
         valid_playlist_sorts = ['position', 'position_reverse', 'date_newest', 'date_oldest']
         if env_vars['YOUTUBE_PLAYLIST_SORT'] not in valid_playlist_sorts:
-            custom_info(f"YOUTUBE_PLAYLIST_SORT 값 '{env_vars['YOUTUBE_PLAYLIST_SORT']}'가 유효하지 않습니다. 기본값 'position'으로 설정합니다.")
+            logging.warning(f"YOUTUBE_PLAYLIST_SORT 값 '{env_vars['YOUTUBE_PLAYLIST_SORT']}'가 유효하지 않습니다. 기본값 'position'으로 설정합니다.")
             env_vars['YOUTUBE_PLAYLIST_SORT'] = 'position'
     elif env_vars['YOUTUBE_MODE'] == 'search':
         if not os.getenv('YOUTUBE_SEARCH_KEYWORD'):
@@ -136,28 +95,43 @@ def check_env_variables() -> Dict[str, Any]:
         env_vars['YOUTUBE_SEARCH_SORT'] = os.getenv('YOUTUBE_SEARCH_SORT', 'date_oldest').lower()
         valid_search_sorts = ['date_newest', 'date_oldest', 'title_asc', 'title_desc']
         if env_vars['YOUTUBE_SEARCH_SORT'] not in valid_search_sorts:
-            custom_info(f"YOUTUBE_SEARCH_SORT 값 '{env_vars['YOUTUBE_SEARCH_SORT']}'가 유효하지 않습니다. 기본값 'date_oldest'로 설정합니다.")
+            logging.warning(f"YOUTUBE_SEARCH_SORT 값 '{env_vars['YOUTUBE_SEARCH_SORT']}'가 유효하지 않습니다. 기본값 'date_oldest'로 설정합니다.")
             env_vars['YOUTUBE_SEARCH_SORT'] = 'date_oldest'
 
+    # 선택적 환경 변수 설정 (기본값 사용)
     env_vars['YOUTUBE_SEARCH_ORDER'] = os.getenv('YOUTUBE_SEARCH_ORDER', 'date').lower()
     valid_search_orders = ['relevance', 'date', 'viewcount', 'rating']
     if env_vars['YOUTUBE_SEARCH_ORDER'] not in valid_search_orders:
-        custom_info(f"YOUTUBE_SEARCH_ORDER 값 '{env_vars['YOUTUBE_SEARCH_ORDER']}'가 유효하지 않습니다. 기본값 'date'로 설정합니다.")
+        logging.warning(f"YOUTUBE_SEARCH_ORDER 값 '{env_vars['YOUTUBE_SEARCH_ORDER']}'가 유효하지 않습니다. 기본값 'date'로 설정합니다.")
         env_vars['YOUTUBE_SEARCH_ORDER'] = 'date'
 
+    # YOUTUBE_INIT_MAX_RESULTS와 YOUTUBE_MAX_RESULTS 처리 개선
     env_vars['YOUTUBE_INIT_MAX_RESULTS'] = int(os.getenv('YOUTUBE_INIT_MAX_RESULTS') or '50')
     env_vars['YOUTUBE_MAX_RESULTS'] = int(os.getenv('YOUTUBE_MAX_RESULTS') or '10')
+
     env_vars['INITIALIZE_MODE_YOUTUBE'] = os.getenv('INITIALIZE_MODE_YOUTUBE', 'false').lower() in ['true', '1', 'yes']
+    env_vars['ADVANCED_FILTER_YOUTUBE'] = os.getenv('ADVANCED_FILTER_YOUTUBE', '')
+    env_vars['DATE_FILTER_YOUTUBE'] = os.getenv('DATE_FILTER_YOUTUBE', '')
+    env_vars['DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW'] = os.getenv('DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW', '')
+    env_vars['DISCORD_AVATAR_YOUTUBE'] = os.getenv('DISCORD_AVATAR_YOUTUBE', '').strip()
+    env_vars['DISCORD_USERNAME_YOUTUBE'] = os.getenv('DISCORD_USERNAME_YOUTUBE', '').strip()
     env_vars['LANGUAGE_YOUTUBE'] = os.getenv('LANGUAGE_YOUTUBE', 'English')
     if env_vars['LANGUAGE_YOUTUBE'] not in ['English', 'Korean']:
-        custom_info(f"LANGUAGE_YOUTUBE 값 '{env_vars['LANGUAGE_YOUTUBE']}'가 유효하지 않습니다. 기본값 'English'로 설정합니다.")
+        logging.warning(f"LANGUAGE_YOUTUBE 값 '{env_vars['LANGUAGE_YOUTUBE']}'가 유효하지 않습니다. 기본값 'English'로 설정합니다.")
         env_vars['LANGUAGE_YOUTUBE'] = 'English'
     env_vars['YOUTUBE_DETAILVIEW'] = os.getenv('YOUTUBE_DETAILVIEW', 'false').lower() in ['true', '1', 'yes']
 
-    custom_info("환경 변수 검증 완료")
+    logging.info("환경 변수 검증 완료")
     
-    return env_vars
+    # 안전하게 로깅할 수 있는 변수들만 출력
+    safe_vars = ['YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_SEARCH_SORT', 'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 
+                 'INITIALIZE_MODE_YOUTUBE', 'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW', 'YOUTUBE_SEARCH_ORDER']
+    for var in safe_vars:
+        if var in env_vars:
+            logging.info(f"{var}: {env_vars[var]}")
 
+    return env_vars
+	
 def parse_duration(duration: str) -> str:
     """영상 길이를 파싱합니다."""
     parsed_duration = isodate.parse_duration(duration)
@@ -542,9 +516,8 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
     max_api_calls = 5  # API 호출 횟수 제한
     search_order = os.getenv('YOUTUBE_SEARCH_ORDER', 'date').lower()
 
-    custom_info(f"검색 키워드: '{YOUTUBE_SEARCH_KEYWORD}'로 최대 {max_results}개의 동영상을 검색 중")
-    custom_info(f"검색 작동: {search_order}")
-    custom_info(f"검색 정렬: {YOUTUBE_SEARCH_SORT}")
+    logging.info(f"검색 키워드: '{search_keyword}'로 최대 {max_results}개의 동영상을 검색 중")
+    logging.info(f"검색 정렬 기준: {search_order}")
 
     while len(video_items) < max_results and api_calls < max_api_calls:
         try:
@@ -801,9 +774,7 @@ def create_discord_message(video: Dict[str, Any], formatted_published_at: str, v
 
 def create_korean_message(video: Dict[str, Any], formatted_published_at: str, video_url: str, playlist_info: Dict[str, str] = None) -> str:
     source_text = get_source_text_korean(video, playlist_info)
-	
-    embed_link = f"https://www.youtube.com/embed/{video['video_id']}"
-	
+    
     message = (
         f"{source_text}"
         f"**{video['title']}**\n"
@@ -974,36 +945,37 @@ def send_discord_messages(video, youtube, info):
         detailed_message = create_embed_message(video, youtube)
         send_to_discord(detailed_message, is_embed=True, is_detail=True)
 
-def log_execution_info(new_videos):
-    custom_info("실행 정보 로깅")
-    custom_info(f"처리된 총 동영상 수: {len(new_videos)}")
-    custom_info(f"YouTube 모드: {YOUTUBE_MODE}")
-    custom_info(f"언어 설정: {LANGUAGE_YOUTUBE}")
+def log_execution_info():
+    logging.info("실행 정보 로깅")
+    logging.info(f"처리된 총 동영상 수: {len(new_videos)}")
+    logging.info(f"YouTube 모드: {YOUTUBE_MODE}")
+    if YOUTUBE_MODE == 'search':
+        logging.info(f"YouTube 검색 정렬: {YOUTUBE_SEARCH_SORT}")
+    logging.info(f"언어 설정: {LANGUAGE_YOUTUBE}")
 
 # 메인 실행 함수
 def main():
     try:
-        log_env_variables()
         check_env_variables()
         initialize_database_if_needed()
         youtube = build_youtube_client()
 
-        global new_videos
+        global new_videos  # new_videos를 전역 변수로 선언
         videos, playlist_info = fetch_video_data(youtube)
         new_videos = process_videos(youtube, videos, playlist_info)
-        log_execution_info(new_videos)
+        log_execution_info()
         
     except YouTubeAPIError as e:
-        custom_info(f"YouTube API 오류 발생: {e}")
+        logging.error(f"YouTube API 오류 발생: {e}")
     except DatabaseError as e:
-        custom_info(f"데이터베이스 오류 발생: {e}")
+        logging.error(f"데이터베이스 오류 발생: {e}")
     except DiscordWebhookError as e:
-        custom_info(f"Discord 웹훅 오류 발생: {e}")
+        logging.error(f"Discord 웹훅 오류 발생: {e}")
     except Exception as e:
-        custom_info(f"예상치 못한 오류 발생: {e}")
+        logging.error(f"예상치 못한 오류 발생: {e}", exc_info=True)
         sys.exit(1)
     finally:
-        custom_info("스크립트 실행이 완료되었습니다.")
+        logging.info("스크립트 실행이 완료되었습니다.")
 
 if __name__ == "__main__":
     main()
