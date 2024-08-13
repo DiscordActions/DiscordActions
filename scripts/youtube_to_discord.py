@@ -57,67 +57,52 @@ class DiscordWebhookError(Exception):
 # 유틸리티 함수
 def check_env_variables() -> None:
     """환경 변수가 올바르게 설정되어 있는지 확인합니다."""
-    try:
-        required_vars = ['YOUTUBE_API_KEY', 'YOUTUBE_MODE', 'DISCORD_WEBHOOK_YOUTUBE']
-        
-        for var in required_vars:
-            if not os.getenv(var):
-                raise ValueError(f"필수 환경 변수 '{var}'가 설정되지 않았습니다.")
+    required_vars = ['YOUTUBE_API_KEY', 'YOUTUBE_MODE', 'DISCORD_WEBHOOK_YOUTUBE']
+    for var in required_vars:
+        if not os.getenv(var):
+            raise ValueError(f"필수 환경 변수 '{var}'가 설정되지 않았습니다.")
 
-        mode = os.getenv('YOUTUBE_MODE', '').lower()
-        if mode not in ['channels', 'playlists', 'search']:
-            raise ValueError("YOUTUBE_MODE는 'channels', 'playlists', 'search' 중 하나여야 합니다.")
+    mode = YOUTUBE_MODE
+    if mode not in ['channels', 'playlists', 'search']:
+        raise ValueError("YOUTUBE_MODE는 'channels', 'playlists', 'search' 중 하나여야 합니다.")
 
-        if mode == 'channels' and not os.getenv('YOUTUBE_CHANNEL_ID'):
-            raise ValueError("YOUTUBE_MODE가 'channels'일 때 YOUTUBE_CHANNEL_ID가 필요합니다.")
-        elif mode == 'playlists':
-            if not os.getenv('YOUTUBE_PLAYLIST_ID'):
-                raise ValueError("YOUTUBE_MODE가 'playlists'일 때 YOUTUBE_PLAYLIST_ID가 필요합니다.")
-            
-            playlist_sort = os.getenv('YOUTUBE_PLAYLIST_SORT', 'position').lower()
-            if playlist_sort not in ['position', 'position_reverse', 'date_newest', 'date_oldest']:
-                raise ValueError("YOUTUBE_PLAYLIST_SORT는 'position', 'position_reverse', 'date_newest', 'date_oldest' 중 하나여야 합니다.")
-        elif mode == 'search' and not os.getenv('YOUTUBE_SEARCH_KEYWORD'):
-            raise ValueError("YOUTUBE_MODE가 'search'일 때 YOUTUBE_SEARCH_KEYWORD가 필요합니다.")
+    if mode == 'channels' and not YOUTUBE_CHANNEL_ID:
+        raise ValueError("YOUTUBE_MODE가 'channels'일 때 YOUTUBE_CHANNEL_ID가 필요합니다.")
+    elif mode == 'playlists':
+        if not YOUTUBE_PLAYLIST_ID:
+            raise ValueError("YOUTUBE_MODE가 'playlists'일 때 YOUTUBE_PLAYLIST_ID가 필요합니다.")
+        if YOUTUBE_PLAYLIST_SORT not in ['position', 'position_reverse', 'date_newest', 'date_oldest']:
+            raise ValueError("YOUTUBE_PLAYLIST_SORT는 'position', 'position_reverse', 'date_newest', 'date_oldest' 중 하나여야 합니다.")
+    elif mode == 'search' and not YOUTUBE_SEARCH_KEYWORD:
+        raise ValueError("YOUTUBE_MODE가 'search'일 때 YOUTUBE_SEARCH_KEYWORD가 필요합니다.")
 
-        # YOUTUBE_SEARCH_ORDER 검증 추가
-        search_order = os.getenv('YOUTUBE_SEARCH_ORDER', 'date').lower()
-        valid_search_orders = ['relevance', 'date', 'viewcount', 'rating']
-        if search_order not in valid_search_orders:
-            logging.warning(f"YOUTUBE_SEARCH_ORDER 환경 변수 '{search_order}'는 올바르지 않음. 기본값 'date'로 설정.")
-            os.environ['YOUTUBE_SEARCH_ORDER'] = 'date'
-        
-        logging.info(f"YOUTUBE_SEARCH_ORDER: {os.getenv('YOUTUBE_SEARCH_ORDER')}")
+    valid_search_orders = ['relevance', 'date', 'viewcount', 'rating']
+    if YOUTUBE_SEARCH_ORDER not in valid_search_orders:
+        logging.warning(f"YOUTUBE_SEARCH_ORDER 환경 변수 '{YOUTUBE_SEARCH_ORDER}'는 올바르지 않음. 기본값 'date'로 설정.")
+        os.environ['YOUTUBE_SEARCH_ORDER'] = 'date'
 
-        for var in ['YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS']:
-            value = os.getenv(var)
-            if value and not value.isdigit():
-                raise ValueError(f"{var}는 숫자여야 합니다.")
+    logging.info(f"YOUTUBE_SEARCH_ORDER: {os.getenv('YOUTUBE_SEARCH_ORDER')}")
 
-        for var in ['INITIALIZE_MODE_YOUTUBE', 'YOUTUBE_DETAILVIEW']:
-            value = os.getenv(var, '').lower()
-            if value and value not in ['true', 'false']:
-                raise ValueError(f"{var}는 'true' 또는 'false'여야 합니다.")
+    for var in ['YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS']:
+        value = os.getenv(var)
+        if value and not value.isdigit():
+            raise ValueError(f"{var}는 숫자여야 합니다.")
 
-        # LANGUAGE_YOUTUBE 기본값 설정 및 검증
-        language = os.getenv('LANGUAGE_YOUTUBE', 'English')
-        if language not in ['English', 'Korean']:
-            logging.warning(f"LANGUAGE_YOUTUBE 환경 변수 '{language}'는 올바르지 않음. 기본값 'English'로 설정.")
-            os.environ['LANGUAGE_YOUTUBE'] = 'English'
+    for var in ['INITIALIZE_MODE_YOUTUBE', 'YOUTUBE_DETAILVIEW']:
+        value = os.getenv(var, '').lower()
+        if value and value not in ['true', 'false']:
+            raise ValueError(f"{var}는 'true' 또는 'false'여야 합니다.")
 
-        logging.info("환경 변수 검증 완료")
-        
-        safe_vars = ['YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 
-                     'INITIALIZE_MODE_YOUTUBE', 'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW', 'YOUTUBE_SEARCH_ORDER']
-        for var in safe_vars:
-            logging.info(f"{var}: {os.getenv(var)}")
+    if LANGUAGE_YOUTUBE not in ['English', 'Korean']:
+        logging.warning(f"LANGUAGE_YOUTUBE 환경 변수 '{LANGUAGE_YOUTUBE}'는 올바르지 않음. 기본값 'English'로 설정.")
+        os.environ['LANGUAGE_YOUTUBE'] = 'English'
 
-    except ValueError as e:
-        logging.error(f"환경 변수 검증 중 오류 발생: {e}")
-        raise
-    except Exception as e:
-        logging.error(f"예상치 못한 오류 발생: {e}")
-        raise
+    logging.info("환경 변수 검증 완료")
+
+    safe_vars = ['YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 
+                 'INITIALIZE_MODE_YOUTUBE', 'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW', 'YOUTUBE_SEARCH_ORDER']
+    for var in safe_vars:
+        logging.info(f"{var}: {os.getenv(var)}")
 	    
 def parse_duration(duration: str) -> str:
     """영상 길이를 파싱합니다."""
@@ -942,18 +927,6 @@ def main():
         sys.exit(1)
     finally:
         logging.info("스크립트 실행 완료")
-
-def log_execution_info():
-    logging.info(f"YOUTUBE_MODE: {YOUTUBE_MODE}")
-    logging.info(f"INITIALIZE_MODE_YOUTUBE: {INITIALIZE_MODE_YOUTUBE}")
-    logging.info(f"YOUTUBE_DETAILVIEW: {YOUTUBE_DETAILVIEW}")
-    logging.info(f"데이터베이스 파일 크기: {os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else '파일 없음'}")
-    
-    with sqlite3.connect(DB_PATH) as conn:
-        c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM videos")
-        count = c.fetchone()[0]
-        logging.info(f"데이터베이스의 비디오 수: {count}")
 
 if __name__ == "__main__":
     main()
