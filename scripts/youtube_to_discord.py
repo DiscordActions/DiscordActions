@@ -24,6 +24,7 @@ YOUTUBE_PLAYLIST_ID = os.getenv('YOUTUBE_PLAYLIST_ID')
 YOUTUBE_PLAYLIST_SORT = os.getenv('YOUTUBE_PLAYLIST_SORT', 'position').lower()
 YOUTUBE_SEARCH_KEYWORD = os.getenv('YOUTUBE_SEARCH_KEYWORD')
 YOUTUBE_SEARCH_ORDER = os.getenv('YOUTUBE_SEARCH_ORDER', 'date').lower()
+YOUTUBE_SEARCH_SORT = os.getenv('YOUTUBE_SEARCH_SORT', 'date_oldest').lower()
 INIT_MAX_RESULTS = int(os.getenv('YOUTUBE_INIT_MAX_RESULTS') or '50')
 MAX_RESULTS = int(os.getenv('YOUTUBE_MAX_RESULTS') or '10')
 INITIALIZE_MODE_YOUTUBE = os.getenv('INITIALIZE_MODE_YOUTUBE', 'false').lower() == 'true'
@@ -82,14 +83,19 @@ def check_env_variables() -> Dict[str, Any]:
             raise ValueError("YOUTUBE_MODE가 'playlists'일 때 YOUTUBE_PLAYLIST_ID가 필요합니다.")
         env_vars['YOUTUBE_PLAYLIST_ID'] = os.getenv('YOUTUBE_PLAYLIST_ID')
         env_vars['YOUTUBE_PLAYLIST_SORT'] = os.getenv('YOUTUBE_PLAYLIST_SORT', 'position').lower()
-        valid_sorts = ['position', 'position_reverse', 'date_newest', 'date_oldest']
-        if env_vars['YOUTUBE_PLAYLIST_SORT'] not in valid_sorts:
+        valid_playlist_sorts = ['position', 'position_reverse', 'date_newest', 'date_oldest']
+        if env_vars['YOUTUBE_PLAYLIST_SORT'] not in valid_playlist_sorts:
             logging.warning(f"YOUTUBE_PLAYLIST_SORT 값 '{env_vars['YOUTUBE_PLAYLIST_SORT']}'가 유효하지 않습니다. 기본값 'position'으로 설정합니다.")
             env_vars['YOUTUBE_PLAYLIST_SORT'] = 'position'
     elif env_vars['YOUTUBE_MODE'] == 'search':
         if not os.getenv('YOUTUBE_SEARCH_KEYWORD'):
             raise ValueError("YOUTUBE_MODE가 'search'일 때 YOUTUBE_SEARCH_KEYWORD가 필요합니다.")
         env_vars['YOUTUBE_SEARCH_KEYWORD'] = os.getenv('YOUTUBE_SEARCH_KEYWORD')
+        env_vars['YOUTUBE_SEARCH_SORT'] = os.getenv('YOUTUBE_SEARCH_SORT', 'date_oldest').lower()
+        valid_search_sorts = ['date_newest', 'date_oldest', 'title_asc', 'title_desc']
+        if env_vars['YOUTUBE_SEARCH_SORT'] not in valid_search_sorts:
+            logging.warning(f"YOUTUBE_SEARCH_SORT 값 '{env_vars['YOUTUBE_SEARCH_SORT']}'가 유효하지 않습니다. 기본값 'date_oldest'로 설정합니다.")
+            env_vars['YOUTUBE_SEARCH_SORT'] = 'date_oldest'
 
     # 선택적 환경 변수 설정 (기본값 사용)
     env_vars['YOUTUBE_SEARCH_ORDER'] = os.getenv('YOUTUBE_SEARCH_ORDER', 'date').lower()
@@ -117,14 +123,14 @@ def check_env_variables() -> Dict[str, Any]:
     logging.info("환경 변수 검증 완료")
     
     # 안전하게 로깅할 수 있는 변수들만 출력
-    safe_vars = ['YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 
+    safe_vars = ['YOUTUBE_MODE', 'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_SEARCH_SORT', 'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 
                  'INITIALIZE_MODE_YOUTUBE', 'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW', 'YOUTUBE_SEARCH_ORDER']
     for var in safe_vars:
         if var in env_vars:
             logging.info(f"{var}: {env_vars[var]}")
 
     return env_vars
-		
+	
 def parse_duration(duration: str) -> str:
     """영상 길이를 파싱합니다."""
     parsed_duration = isodate.parse_duration(duration)
@@ -547,7 +553,17 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
     logging.info(f"총 {len(video_items)}개의 검색 결과를 가져왔습니다. API 호출 횟수: {api_calls}")
     
     return video_items
-	
+
+def sort_search_videos(videos):
+    if YOUTUBE_SEARCH_SORT == 'date_newest':
+        return sorted(videos, key=lambda x: x['published_at'], reverse=True)
+    elif YOUTUBE_SEARCH_SORT == 'title_asc':
+        return sorted(videos, key=lambda x: x['title'])
+    elif YOUTUBE_SEARCH_SORT == 'title_desc':
+        return sorted(videos, key=lambda x: x['title'], reverse=True)
+    else:  # 'date_oldest' (default)
+        return sorted(videos, key=lambda x: x['published_at'])
+	    
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=5), retry=retry_if_exception_type(HttpError))
 def get_full_video_data(youtube, video_id: str, basic_info: Dict[str, Any]) -> Dict[str, Any]:
     try:
@@ -907,6 +923,9 @@ def process_videos(youtube, videos, info):
     
     new_videos = process_new_videos(youtube, videos, video_details_dict, existing_video_ids, since_date, until_date, past_date)
     
+    if YOUTUBE_MODE == 'search':
+        new_videos = sort_search_videos(new_videos)
+    
     logging.info(f"처리할 새로운 비디오 수: {len(new_videos)}")
     
     for video in new_videos:
@@ -914,7 +933,7 @@ def process_videos(youtube, videos, info):
         send_discord_messages(video, youtube, info)
     
     return new_videos
-
+	
 def send_discord_messages(video, youtube, info):
     logging.info(f"처리 중인 비디오: {video['title']}")
     
@@ -930,6 +949,8 @@ def log_execution_info():
     logging.info("실행 정보 로깅")
     logging.info(f"처리된 총 비디오 수: {len(new_videos)}")
     logging.info(f"YouTube 모드: {YOUTUBE_MODE}")
+    if YOUTUBE_MODE == 'search':
+        logging.info(f"YouTube 검색 정렬: {YOUTUBE_SEARCH_SORT}")
     logging.info(f"언어 설정: {LANGUAGE_YOUTUBE}")
 
 # 메인 실행 함수
