@@ -779,7 +779,7 @@ def create_korean_message(video: Dict[str, Any], formatted_published_at: str, vi
         f"{source_text}"
         f"**{video['title']}**\n"
         f"{video_url}\n\n"
-        f"📁 카테고리: `{video['category_name']}`\n"
+        f"📁 영상분류: `{video['category_name']}`\n"
         f"⌛️ 영상길이: `{video['duration']}`\n"
         f"📅 영상날짜: `{formatted_published_at}`\n"
         f"🖼️ [썸네일](<{video['thumbnail_url']}>)"
