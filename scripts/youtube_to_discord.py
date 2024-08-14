@@ -951,37 +951,26 @@ def send_discord_messages(video, youtube, info):
         detailed_message = create_embed_message(video, youtube)
         send_to_discord(detailed_message, is_embed=True, is_detail=True)
 
-def print_safe_env_vars():
-    safe_vars = [
-        'YOUTUBE_MODE', 'YOUTUBE_SEARCH_ORDER', 'YOUTUBE_SEARCH_SORT',
-        'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 'LANGUAGE_YOUTUBE',
-        'YOUTUBE_DETAILVIEW'
+def print_env_vars():
+    logging.info("환경 변수 설정:")
+    env_vars = [
+        'YOUTUBE_MODE', 'YOUTUBE_CHANNEL_ID', 'YOUTUBE_PLAYLIST_ID',
+        'YOUTUBE_PLAYLIST_SORT', 'YOUTUBE_SEARCH_KEYWORD', 'YOUTUBE_SEARCH_ORDER',
+        'YOUTUBE_SEARCH_SORT', 'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS',
+        'INITIALIZE_MODE_YOUTUBE', 'ADVANCED_FILTER_YOUTUBE', 'DATE_FILTER_YOUTUBE',
+        'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW'
     ]
-    print("환경 변수 설정:")
-    for var in safe_vars:
-        log_env_var(var)
-    
-    # 민감한 정보는 별도로 처리
-    log_env_var('YOUTUBE_API_KEY', is_sensitive=True)
-    log_env_var('DISCORD_WEBHOOK_YOUTUBE', is_sensitive=True)
-
-def log_env_var(var_name: str, is_sensitive: bool = False):
-    value = os.getenv(var_name)
-    if value is None:
-        print(f"{var_name}: 설정되지 않음")
-    elif is_sensitive:
-        print(f"{var_name}: (민감한 정보)")
-    else:
-        if value.strip():
-            print(f"{var_name}: {value}")
+    for var in env_vars:
+        value = os.getenv(var)
+        if value is None:
+            logging.info(f"{var}: 설정되지 않음")
         else:
-            print(f"{var_name}: (비어있음)")
-		
+            logging.info(f"{var}: {value}")
+	
 # 메인 실행 함수
 def main():
     try:
-        env_vars = check_env_variables()
-        print_safe_env_vars()
+        print_env_vars()
         initialize_database_if_needed()
         youtube = build_youtube_client()
 
@@ -990,13 +979,13 @@ def main():
         
         # 실행 정보 요약
         logging.info("실행 정보 요약:")
-        logging.info(f"- YouTube 모드: {env_vars['YOUTUBE_MODE']}")
+        logging.info(f"- YouTube 모드: {YOUTUBE_MODE}")
         logging.info(f"- 총 처리된 동영상 수: {len(new_videos)}")
         logging.info(f"- 제외된 동영상 수: {excluded_count}")
-        if env_vars['YOUTUBE_MODE'] == 'search':
-            logging.info(f"- YouTube 검색 키워드: {env_vars['YOUTUBE_SEARCH_KEYWORD']}")
-            logging.info(f"- YouTube 검색 정렬: {env_vars['YOUTUBE_SEARCH_SORT']}")
-        logging.info(f"- 언어 설정: {env_vars['LANGUAGE_YOUTUBE']}")
+        if YOUTUBE_MODE == 'search':
+            logging.info(f"- YouTube 검색 키워드: {YOUTUBE_SEARCH_KEYWORD}")
+            logging.info(f"- YouTube 검색 정렬: {YOUTUBE_SEARCH_SORT}")
+        logging.info(f"- 언어 설정: {LANGUAGE_YOUTUBE}")
         
     except YouTubeAPIError as e:
         logging.error(f"YouTube API 오류 발생: {e}")
