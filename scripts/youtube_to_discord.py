@@ -951,22 +951,36 @@ def send_discord_messages(video, youtube, info):
         detailed_message = create_embed_message(video, youtube)
         send_to_discord(detailed_message, is_embed=True, is_detail=True)
 
+def print_safe_env_vars():
+    safe_vars = [
+        'YOUTUBE_MODE', 'YOUTUBE_SEARCH_ORDER', 'YOUTUBE_SEARCH_SORT',
+        'YOUTUBE_INIT_MAX_RESULTS', 'YOUTUBE_MAX_RESULTS', 'LANGUAGE_YOUTUBE',
+        'YOUTUBE_DETAILVIEW'
+    ]
+    print("환경 변수 설정:")
+    for var in safe_vars:
+        log_env_var(var)
+    
+    # 민감한 정보는 별도로 처리
+    log_env_var('YOUTUBE_API_KEY', is_sensitive=True)
+    log_env_var('DISCORD_WEBHOOK_YOUTUBE', is_sensitive=True)
+
 def log_env_var(var_name: str, is_sensitive: bool = False):
     value = os.getenv(var_name)
     if value is None:
-        logging.info(f"{var_name}: 설정되지 않음")
+        print(f"{var_name}: 설정되지 않음")
     elif is_sensitive:
-        logging.info(f"{var_name}: (민감한 정보)")
+        print(f"{var_name}: (민감한 정보)")
     else:
-        # 값이 비어있지 않은 경우에만 출력
         if value.strip():
-            logging.info(f"{var_name}: {value}")
+            print(f"{var_name}: {value}")
         else:
-            logging.info(f"{var_name}: (비어있음)")
-
+            print(f"{var_name}: (비어있음)")
+		
 # 메인 실행 함수
 def main():
     try:
+	print_safe_env_vars()
         env_vars = check_env_variables()
         initialize_database_if_needed()
         youtube = build_youtube_client()
