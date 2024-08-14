@@ -517,10 +517,10 @@ def sort_playlist_items(playlist_items: List[Tuple[str, Dict[str, Any]]]) -> Lis
 def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[str, Any]]]:
     video_items = []
     next_page_token = None
-    max_results = INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else MAX_RESULTS
+    max_results = YOUTUBE_INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else YOUTUBE_MAX_RESULTS
     api_calls = 0
     max_api_calls = 5  # API 호출 횟수 제한
-    search_order = os.getenv('YOUTUBE_SEARCH_ORDER', 'date').lower()
+    search_order = YOUTUBE_SEARCH_ORDER if YOUTUBE_SEARCH_ORDER else 'date'  # 기본값 설정
 
     logging.info(f"검색 키워드: '{search_keyword}'로 최대 {max_results}개의 동영상을 검색 중")
     logging.info(f"검색 정렬 기준: {search_order}")
