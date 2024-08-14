@@ -232,6 +232,10 @@ def parse_date_filter(filter_string: str) -> Tuple[datetime, datetime, datetime]
 
 def is_within_date_range(published_at: str, since_date: datetime, until_date: datetime, past_date: datetime) -> bool:
     """게시물이 날짜 필터 범위 내에 있는지 확인합니다."""
+
+    if not any([since_date, until_date, past_date]):
+        return True  # 날짜 필터가 설정되지 않은 경우 모든 비디오 포함
+
     pub_datetime = datetime.strptime(published_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
     
     if past_date and pub_datetime >= past_date:
@@ -654,7 +658,7 @@ def process_new_videos(youtube, videos: List[Tuple[str, Dict[str, Any]]], video_
             logging.info(f"이미 존재하는 동영상 건너뛰기: {video_id}")
             continue
 
-        if not INITIALIZE_MODE_YOUTUBE and not is_within_date_range(published_at, since_date, until_date, past_date):
+        if not is_within_date_range(published_at, since_date, until_date, past_date):
             logging.info(f"날짜 필터에 의해 제외된 동영상: {snippet['title']}")
             filtered_by_date += 1
             continue
@@ -695,7 +699,7 @@ def process_new_videos(youtube, videos: List[Tuple[str, Dict[str, Any]]], video_
     logging.info(f"최종 처리된 새 동영상 수: {len(new_videos)}")
     
     return new_videos
-
+			       
 def get_channel_thumbnail(youtube, channel_id: str) -> str:
     """채널 썸네일을 가져옵니다."""
     try:
@@ -954,7 +958,11 @@ def log_env_var(var_name: str, is_sensitive: bool = False):
     elif is_sensitive:
         logging.info(f"{var_name}: (민감한 정보)")
     else:
-        logging.info(f"{var_name}: {value}")
+        # 값이 비어있지 않은 경우에만 출력
+        if value.strip():
+            logging.info(f"{var_name}: {value}")
+        else:
+            logging.info(f"{var_name}: (비어있음)")
 
 # 메인 실행 함수
 def main():
