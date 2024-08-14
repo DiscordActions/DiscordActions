@@ -86,6 +86,7 @@ jobs:
       - name: Notify Discord of New YouTube Videos
         env:
           IS_FIRST_RUN: ${{ steps.get_latest_run.outputs.result == '' }}
+          PYTHONUNBUFFERED: 1
         run: python scripts/youtube_to_discord.py
 
       - name: Upload updated database
