@@ -520,10 +520,10 @@ def fetch_search_videos(youtube, search_keyword: str) -> List[Tuple[str, Dict[st
     max_results = YOUTUBE_INIT_MAX_RESULTS if INITIALIZE_MODE_YOUTUBE else YOUTUBE_MAX_RESULTS
     api_calls = 0
     max_api_calls = 5  # API 호출 횟수 제한
-    search_order = YOUTUBE_SEARCH_ORDER if YOUTUBE_SEARCH_ORDER else 'date'  # 기본값 설정
+    search_order = YOUTUBE_SEARCH_ORDER if YOUTUBE_SEARCH_ORDER else 'date'
 
     logging.info(f"검색 키워드: '{search_keyword}'로 최대 {max_results}개의 동영상을 검색 중")
-    logging.info(f"검색 정렬 기준: {search_order}")
+    logging.info(f"검색 방식: {search_order}")
 
     while len(video_items) < max_results and api_calls < max_api_calls:
         try:
@@ -961,7 +961,7 @@ def print_env_vars():
         'LANGUAGE_YOUTUBE', 'YOUTUBE_DETAILVIEW'
     ]
     for var in env_vars:
-        value = os.getenv(var)
+        value = globals().get(var)
         if value is None:
             logging.info(f"{var}: 설정되지 않음")
         else:
