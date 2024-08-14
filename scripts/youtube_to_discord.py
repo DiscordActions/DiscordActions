@@ -980,8 +980,8 @@ def log_env_var(var_name: str, is_sensitive: bool = False):
 # 메인 실행 함수
 def main():
     try:
-	print_safe_env_vars()
         env_vars = check_env_variables()
+        print_safe_env_vars()
         initialize_database_if_needed()
         youtube = build_youtube_client()
 
@@ -1009,6 +1009,6 @@ def main():
         sys.exit(1)
     finally:
         logging.info("스크립트 실행이 완료되었습니다.")
-	    
+
 if __name__ == "__main__":
     main()
