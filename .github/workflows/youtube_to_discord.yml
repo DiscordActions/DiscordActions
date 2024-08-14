@@ -6,25 +6,25 @@ on:
   workflow_dispatch:
 
 env:
-  INITIALIZE_MODE_YOUTUBE: ${{ secrets.INITIALIZE_MODE_YOUTUBE }}
+  INITIALIZE_MODE_YOUTUBE: ${{ vars.INITIALIZE_MODE_YOUTUBE }}
   YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-  YOUTUBE_MODE: ${{ secrets.YOUTUBE_MODE }}
-  YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
-  YOUTUBE_PLAYLIST_ID: ${{ secrets.YOUTUBE_PLAYLIST_ID }}
-  YOUTUBE_PLAYLIST_SORT: ${{ secrets.YOUTUBE_PLAYLIST_SORT }}
-  YOUTUBE_SEARCH_KEYWORD: ${{ secrets.YOUTUBE_SEARCH_KEYWORD }}
-  YOUTUBE_SEARCH_ORDER: ${{ secrets.YOUTUBE_SEARCH_ORDER }}
-  YOUTUBE_SEARCH_SORT: ${{ secrets.YOUTUBE_SEARCH_SORT }}
-  YOUTUBE_INIT_MAX_RESULTS: ${{ secrets.YOUTUBE_INIT_MAX_RESULTS }}
-  YOUTUBE_MAX_RESULTS: ${{ secrets.YOUTUBE_MAX_RESULTS }}
-  ADVANCED_FILTER_YOUTUBE: ${{ secrets.ADVANCED_FILTER_YOUTUBE }}
-  DATE_FILTER_YOUTUBE: ${{ secrets.DATE_FILTER_YOUTUBE }}
-  LANGUAGE_YOUTUBE: ${{ secrets.LANGUAGE_YOUTUBE }}
+  YOUTUBE_MODE: ${{ vars.YOUTUBE_MODE }}
+  YOUTUBE_CHANNEL_ID: ${{ vars.YOUTUBE_CHANNEL_ID }}
+  YOUTUBE_PLAYLIST_ID: ${{ vars.YOUTUBE_PLAYLIST_ID }}
+  YOUTUBE_PLAYLIST_SORT: ${{ vars.YOUTUBE_PLAYLIST_SORT }}
+  YOUTUBE_SEARCH_KEYWORD: ${{ vars.YOUTUBE_SEARCH_KEYWORD }}
+  YOUTUBE_SEARCH_ORDER: ${{ vars.YOUTUBE_SEARCH_ORDER }}
+  YOUTUBE_SEARCH_SORT: ${{ vars.YOUTUBE_SEARCH_SORT }}
+  YOUTUBE_INIT_MAX_RESULTS: ${{ vars.YOUTUBE_INIT_MAX_RESULTS }}
+  YOUTUBE_MAX_RESULTS: ${{ vars.YOUTUBE_MAX_RESULTS }}
+  ADVANCED_FILTER_YOUTUBE: ${{ vars.ADVANCED_FILTER_YOUTUBE }}
+  DATE_FILTER_YOUTUBE: ${{ vars.DATE_FILTER_YOUTUBE }}
+  LANGUAGE_YOUTUBE: ${{ vars.LANGUAGE_YOUTUBE }}
   DISCORD_WEBHOOK_YOUTUBE: ${{ secrets.DISCORD_WEBHOOK_YOUTUBE }}
   DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW: ${{ secrets.DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW }}
   DISCORD_AVATAR_YOUTUBE: ${{ secrets.DISCORD_AVATAR_YOUTUBE }}
   DISCORD_USERNAME_YOUTUBE: ${{ secrets.DISCORD_USERNAME_YOUTUBE }}
-  YOUTUBE_DETAILVIEW: ${{ secrets.YOUTUBE_DETAILVIEW }}
+  YOUTUBE_DETAILVIEW: ${{ vars.YOUTUBE_DETAILVIEW }}
 
 jobs:
   fetch-and-post:
@@ -86,7 +86,6 @@ jobs:
       - name: Notify Discord of New YouTube Videos
         env:
           IS_FIRST_RUN: ${{ steps.get_latest_run.outputs.result == '' }}
-          PYTHONUNBUFFERED: 1
         run: python scripts/youtube_to_discord.py
 
       - name: Upload updated database
@@ -101,6 +100,11 @@ jobs:
         run: |
           echo "Latest successful run ID: ${{ steps.get_latest_run.outputs.result }}"
           echo "INITIALIZE_MODE_YOUTUBE: ${{ env.INITIALIZE_MODE_YOUTUBE }}"
+          echo "YOUTUBE_MODE: ${{ env.YOUTUBE_MODE }}"
+          echo "YOUTUBE_SEARCH_KEYWORD: ${{ env.YOUTUBE_SEARCH_KEYWORD }}"
+          echo "YOUTUBE_SEARCH_ORDER: ${{ env.YOUTUBE_SEARCH_ORDER }}"
+          echo "YOUTUBE_INIT_MAX_RESULTS: ${{ env.YOUTUBE_INIT_MAX_RESULTS }}"
+          echo "LANGUAGE_YOUTUBE: ${{ env.LANGUAGE_YOUTUBE }}"
           echo "Workspace contents:"
           ls -la
           echo "Database file size:"
