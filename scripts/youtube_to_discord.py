@@ -84,31 +84,16 @@ def check_env_variables() -> Dict[str, Any]:
             raise ValueError("YOUTUBE_MODE가 'playlists'일 때 YOUTUBE_PLAYLIST_ID가 필요합니다.")
         env_vars['YOUTUBE_PLAYLIST_ID'] = os.getenv('YOUTUBE_PLAYLIST_ID')
         env_vars['YOUTUBE_PLAYLIST_SORT'] = os.getenv('YOUTUBE_PLAYLIST_SORT', 'position').lower()
-        valid_playlist_sorts = ['position', 'position_reverse', 'date_newest', 'date_oldest']
-        if env_vars['YOUTUBE_PLAYLIST_SORT'] not in valid_playlist_sorts:
-            logging.warning(f"YOUTUBE_PLAYLIST_SORT 값 '{env_vars['YOUTUBE_PLAYLIST_SORT']}'가 유효하지 않습니다. 기본값 'position'으로 설정합니다.")
-            env_vars['YOUTUBE_PLAYLIST_SORT'] = 'position'
     elif env_vars['YOUTUBE_MODE'] == 'search':
         if not os.getenv('YOUTUBE_SEARCH_KEYWORD'):
             raise ValueError("YOUTUBE_MODE가 'search'일 때 YOUTUBE_SEARCH_KEYWORD가 필요합니다.")
         env_vars['YOUTUBE_SEARCH_KEYWORD'] = os.getenv('YOUTUBE_SEARCH_KEYWORD')
         env_vars['YOUTUBE_SEARCH_SORT'] = os.getenv('YOUTUBE_SEARCH_SORT', 'date_oldest').lower()
-        valid_search_sorts = ['date_newest', 'date_oldest', 'title_asc', 'title_desc']
-        if env_vars['YOUTUBE_SEARCH_SORT'] not in valid_search_sorts:
-            logging.warning(f"YOUTUBE_SEARCH_SORT 값 '{env_vars['YOUTUBE_SEARCH_SORT']}'가 유효하지 않습니다. 기본값 'date_oldest'로 설정합니다.")
-            env_vars['YOUTUBE_SEARCH_SORT'] = 'date_oldest'
 
     # 선택적 환경 변수 설정 (기본값 사용)
     env_vars['YOUTUBE_SEARCH_ORDER'] = os.getenv('YOUTUBE_SEARCH_ORDER', 'date').lower()
-    valid_search_orders = ['relevance', 'date', 'viewcount', 'rating']
-    if env_vars['YOUTUBE_SEARCH_ORDER'] not in valid_search_orders:
-        logging.warning(f"YOUTUBE_SEARCH_ORDER 값 '{env_vars['YOUTUBE_SEARCH_ORDER']}'가 유효하지 않습니다. 기본값 'date'로 설정합니다.")
-        env_vars['YOUTUBE_SEARCH_ORDER'] = 'date'
-
-    # YOUTUBE_INIT_MAX_RESULTS와 YOUTUBE_MAX_RESULTS 처리 개선
     env_vars['YOUTUBE_INIT_MAX_RESULTS'] = int(os.getenv('YOUTUBE_INIT_MAX_RESULTS') or '50')
     env_vars['YOUTUBE_MAX_RESULTS'] = int(os.getenv('YOUTUBE_MAX_RESULTS') or '10')
-
     env_vars['INITIALIZE_MODE_YOUTUBE'] = os.getenv('INITIALIZE_MODE_YOUTUBE', 'false').lower() in ['true', '1', 'yes']
     env_vars['ADVANCED_FILTER_YOUTUBE'] = os.getenv('ADVANCED_FILTER_YOUTUBE', '')
     env_vars['DATE_FILTER_YOUTUBE'] = os.getenv('DATE_FILTER_YOUTUBE', '')
@@ -116,33 +101,36 @@ def check_env_variables() -> Dict[str, Any]:
     env_vars['DISCORD_AVATAR_YOUTUBE'] = os.getenv('DISCORD_AVATAR_YOUTUBE', '').strip()
     env_vars['DISCORD_USERNAME_YOUTUBE'] = os.getenv('DISCORD_USERNAME_YOUTUBE', '').strip()
     env_vars['LANGUAGE_YOUTUBE'] = os.getenv('LANGUAGE_YOUTUBE', 'English')
-    if env_vars['LANGUAGE_YOUTUBE'] not in ['English', 'Korean']:
-        logging.warning(f"LANGUAGE_YOUTUBE 값 '{env_vars['LANGUAGE_YOUTUBE']}'가 유효하지 않습니다. 기본값 'English'로 설정합니다.")
-        env_vars['LANGUAGE_YOUTUBE'] = 'English'
     env_vars['YOUTUBE_DETAILVIEW'] = os.getenv('YOUTUBE_DETAILVIEW', 'false').lower() in ['true', '1', 'yes']
 
-    logging.info("환경 변수 검증 완료")
-    
-    # 직접 로깅
-    logging.info(f"YouTube 모드: {env_vars['YOUTUBE_MODE']}")
-    logging.info(f"YouTube 초기화 모드: {env_vars['INITIALIZE_MODE_YOUTUBE']}")
-    logging.info(f"YouTube 최대 초기 결과 수: {env_vars['YOUTUBE_INIT_MAX_RESULTS']}")
-    logging.info(f"YouTube 최대 결과 수: {env_vars['YOUTUBE_MAX_RESULTS']}")
-    logging.info(f"YouTube 언어 설정: {env_vars['LANGUAGE_YOUTUBE']}")
-    logging.info(f"YouTube 상세 보기 설정: {env_vars['YOUTUBE_DETAILVIEW']}")
+    # 환경 변수 로깅
+    logging.info("환경 변수 설정:")
+    log_env_var("YOUTUBE_MODE")
+    log_env_var("INITIALIZE_MODE_YOUTUBE")
+    log_env_var("YOUTUBE_INIT_MAX_RESULTS")
+    log_env_var("YOUTUBE_MAX_RESULTS")
+    log_env_var("LANGUAGE_YOUTUBE")
+    log_env_var("YOUTUBE_DETAILVIEW")
 
     if env_vars['YOUTUBE_MODE'] == 'channels':
-        logging.info(f"YouTube 채널 ID: {env_vars['YOUTUBE_CHANNEL_ID']}")
+        log_env_var("YOUTUBE_CHANNEL_ID")
     elif env_vars['YOUTUBE_MODE'] == 'playlists':
-        logging.info(f"YouTube 재생목록 ID: {env_vars['YOUTUBE_PLAYLIST_ID']}")
-        logging.info(f"YouTube 재생목록 정렬: {env_vars['YOUTUBE_PLAYLIST_SORT']}")
+        log_env_var("YOUTUBE_PLAYLIST_ID")
+        log_env_var("YOUTUBE_PLAYLIST_SORT")
     elif env_vars['YOUTUBE_MODE'] == 'search':
-        logging.info(f"YouTube 검색 키워드: {env_vars['YOUTUBE_SEARCH_KEYWORD']}")
-        logging.info(f"YouTube 검색 정렬: {env_vars['YOUTUBE_SEARCH_SORT']}")
-        logging.info(f"YouTube 검색 순서: {env_vars['YOUTUBE_SEARCH_ORDER']}")
+        log_env_var("YOUTUBE_SEARCH_KEYWORD")
+        log_env_var("YOUTUBE_SEARCH_SORT")
+        log_env_var("YOUTUBE_SEARCH_ORDER")
 
-    logging.info(f"고급 필터 설정: {env_vars['ADVANCED_FILTER_YOUTUBE']}")
-    logging.info(f"날짜 필터 설정: {env_vars['DATE_FILTER_YOUTUBE']}")
+    log_env_var("ADVANCED_FILTER_YOUTUBE")
+    log_env_var("DATE_FILTER_YOUTUBE")
+    
+    # 민감한 정보 로깅
+    log_env_var("YOUTUBE_API_KEY", True)
+    log_env_var("DISCORD_WEBHOOK_YOUTUBE", True)
+    log_env_var("DISCORD_WEBHOOK_YOUTUBE_DETAILVIEW", True)
+
+    logging.info("환경 변수 검증 완료")
 
     return env_vars
 	
@@ -959,6 +947,15 @@ def send_discord_messages(video, youtube, info):
         detailed_message = create_embed_message(video, youtube)
         send_to_discord(detailed_message, is_embed=True, is_detail=True)
 
+def log_env_var(var_name: str, is_sensitive: bool = False):
+    value = os.getenv(var_name)
+    if value is None:
+        logging.info(f"{var_name}: 설정되지 않음")
+    elif is_sensitive:
+        logging.info(f"{var_name}: (민감한 정보)")
+    else:
+        logging.info(f"{var_name}: {value}")
+
 # 메인 실행 함수
 def main():
     try:
@@ -969,7 +966,7 @@ def main():
         videos, playlist_info = fetch_video_data(youtube)
         new_videos, excluded_count = process_videos(youtube, videos, playlist_info)
         
-        # 실행 정보 요약 (중복 제거)
+        # 실행 정보 요약
         logging.info("실행 정보 요약:")
         logging.info(f"- YouTube 모드: {env_vars['YOUTUBE_MODE']}")
         logging.info(f"- 총 처리된 동영상 수: {len(new_videos)}")
